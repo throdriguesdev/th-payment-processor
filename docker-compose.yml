@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # nginx Load Balancer
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "9999:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app1
+      - app2
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: "50MB"
+    networks:
+      - backend
+      - payment-processor
+
+  # backend App Instance 1
+  app1:
+    build: .
+    environment:
+      - SERVER_PORT=8080
+      - DEFAULT_PROCESSOR_URL=http://payment-processor-default:8080
+      - FALLBACK_PROCESSOR_URL=http://payment-processor-fallback:8080
+    deploy:
+      resources:
+        limits:
+          cpus: "0.6"
+          memory: "150MB"
+    networks:
+      - backend
+      - payment-processor
+
+  # backend App Instance 2
+  app2:
+    build: .
+    environment:
+      - SERVER_PORT=8080
+      - DEFAULT_PROCESSOR_URL=http://payment-processor-default:8080
+      - FALLBACK_PROCESSOR_URL=http://payment-processor-fallback:8080
+    deploy:
+      resources:
+        limits:
+          cpus: "0.6"
+          memory: "150MB"
+    networks:
+      - backend
+      - payment-processor
+
+networks:
+  backend:
+    driver: bridge
+  payment-processor:
+    external: true
+    name: payment-processors_payment-processor 
