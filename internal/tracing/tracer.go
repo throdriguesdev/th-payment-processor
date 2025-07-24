@@ -48,6 +48,6 @@ func InitTracer() (func(), error) {
 	}, nil
 }
 
-func GetTracer() trace.Tracer {
-	return otel.Tracer(ServiceName)
+func GetTracer() *trace.TracerProvider {
+	return trace.NewTracerProvider()
 }
