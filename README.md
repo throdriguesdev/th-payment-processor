@@ -3,7 +3,24 @@
 
 - Docker and Docker Compose
 
-### Running the Services *(IMPORTANT: Correct deployment sequence)*
+### Quick Start with Automated Scripts
+
+**Option 1: Automated Setup (Recommended)**
+
+```bash
+# Initialize entire environment automatically
+./init.sh
+
+# Run comprehensive tests
+./test_payments.sh      # Test payment API functionality
+./test_processors.sh    # Test processor integration
+./stress_test.sh        # Performance testing (p99 < 11ms)
+
+# Clean up when done
+./cleanup.sh
+```
+
+**Option 2: Manual Setup**
 
 1. **Start the payment processors first** *(separate project)*:
 
@@ -99,6 +116,58 @@
 - Handles both processors being unavailable
 - Complete audit trail for consistency verification
 
+## Automated Testing Suite
+
+### Available Test Scripts
+
+| Script | Description | Usage |
+|--------|-------------|-------|
+| `./test_payments.sh` | **Payment API Tests** - Basic functionality, validation, load testing | `./test_payments.sh` |
+| `./test_processors.sh` | **Processor Integration** - Health checks, failure simulation, admin endpoints | `./test_processors.sh` |
+| `./stress_test.sh` | **Performance Testing** - Load testing to validate p99 < 11ms target | `./stress_test.sh [users] [requests]` |
+
+### Test Coverage
+
+**Payment API Tests (`test_payments.sh`):**
+- ✅ Basic payment processing
+- ✅ Multiple concurrent payments
+- ✅ Input validation (missing fields, invalid amounts)
+- ✅ Payment summary endpoints
+- ✅ Time-based filtering
+- ✅ Load testing (concurrent requests)
+- ✅ Response time measurement
+
+**Processor Integration Tests (`test_processors.sh`):**
+- ✅ Health check endpoints
+- ✅ Direct processor communication
+- ✅ Admin endpoints (summary, configuration)
+- ✅ Failure simulation scenarios
+- ✅ Response delay testing
+- ✅ Rate limiting validation
+
+**Performance Tests (`stress_test.sh`):**
+- ✅ Configurable concurrent users and requests
+- ✅ Response time percentiles (P50, P95, P99)
+- ✅ Performance bonus calculation
+- ✅ Error rate monitoring
+- ✅ Throughput measurement
+
+### Example Usage
+
+```bash
+# Quick functional test
+./test_payments.sh
+
+# Test with failure scenarios
+./test_processors.sh
+
+# Performance test with custom load
+./stress_test.sh 20 100  # 20 users, 100 requests each
+
+# Light performance test
+./stress_test.sh 5 10    # 5 users, 10 requests each
+```
+
 ## Testing Scenarios
 
 ### Normal Operation
@@ -157,3 +226,35 @@
   - Background health monitoring
   - Efficient JSON processing
   - Minimal resource footprint
+
+## Available Scripts
+
+| Script | Purpose | Description |
+|--------|---------|-------------|
+| `./init.sh` | **Environment Setup** | Automatically starts payment processors and backend with proper sequence |
+| `./cleanup.sh` | **Environment Cleanup** | Stops all services and cleans up Docker resources |
+| `./test_payments.sh` | **API Testing** | Comprehensive payment API functionality tests |
+| `./test_processors.sh` | **Integration Testing** | Payment processor integration and failure scenario tests |
+| `./stress_test.sh` | **Performance Testing** | Load testing with p99 performance measurement |
+
+### Service Endpoints
+
+- **Backend API:** http://localhost:9999
+- **Default Processor:** http://localhost:8001 (1% fee)
+- **Fallback Processor:** http://localhost:8002 (5% fee)
+
+### Monitoring Commands
+
+```bash
+# View service status
+docker-compose ps
+
+# Monitor backend logs
+docker-compose logs -f
+
+# Monitor processor logs
+cd ../payment-processors && docker-compose logs -f
+
+# Check payment summary
+curl http://localhost:9999/payments-summary
+```
