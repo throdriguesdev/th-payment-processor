@@ -7,6 +7,11 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"net/http"
 	"rinha-backend/internal/config"
 	"rinha-backend/internal/models"
@@ -36,7 +41,8 @@ func NewPaymentService(cfg *config.Config, storage *storage.InMemoryStorage) *Pa
 		config:  cfg,
 		storage: storage,
 		client: &http.Client{
-			Timeout: cfg.RequestTimeout,
+			Timeout:   cfg.RequestTimeout,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
 		},
 		defaultHealth: &models.ProcessorHealth{
 			IsHealthy: true,
@@ -50,11 +56,22 @@ func NewPaymentService(cfg *config.Config, storage *storage.InMemoryStorage) *Pa
 }
 
 func (s *PaymentService) ProcessPayment(req *models.PaymentRequest) (*models.PaymentRecord, error) {
+	ctx := context.Background()
+	tracer := otel.Tracer("payment-service")
+	ctx, span := tracer.Start(ctx, "ProcessPayment")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("payment.correlation_id", req.CorrelationID),
+		attribute.Float64("payment.amount", req.Amount),
+	)
+
 	logrus.Infof("Processing payment: correlationId=%s, amount=%.2f", req.CorrelationID, req.Amount)
 
 	// Check if payment already exists
 	if existing, exists := s.storage.GetPaymentByCorrelationID(req.CorrelationID); exists {
 		logrus.Infof("Payment already exists: %s", req.CorrelationID)
+		span.SetAttributes(attribute.Bool("payment.already_exists", true))
 		return existing, nil
 	}
 
@@ -70,29 +87,37 @@ func (s *PaymentService) ProcessPayment(req *models.PaymentRequest) (*models.Pay
 	// try default processor first
 	if s.isProcessorHealthy("default") {
 		logrus.Infof("Trying default processor for payment: %s", req.CorrelationID)
-		if err := s.processWithProcessor(req, record, "default"); err == nil {
+		span.SetAttributes(attribute.String("payment.processor.attempted", "default"))
+		if err := s.processWithProcessor(ctx, req, record, "default"); err == nil {
 			logrus.Infof("Payment processed successfully with default processor: %s", req.CorrelationID)
+			span.SetAttributes(attribute.String("payment.processor.used", "default"))
 			s.storage.StorePayment(record)
 			return record, nil
 		} else {
 			logrus.Errorf("Default processor failed for payment %s: %v", req.CorrelationID, err)
+			span.SetAttributes(attribute.String("payment.processor.default.error", err.Error()))
 		}
 	} else {
 		logrus.Warnf("Default processor not healthy for payment: %s", req.CorrelationID)
+		span.SetAttributes(attribute.Bool("payment.processor.default.unhealthy", true))
 	}
 
 	// try fallback processor
 	if s.isProcessorHealthy("fallback") {
 		logrus.Infof("Trying fallback processor for payment: %s", req.CorrelationID)
-		if err := s.processWithProcessor(req, record, "fallback"); err == nil {
+		span.SetAttributes(attribute.String("payment.processor.attempted", "fallback"))
+		if err := s.processWithProcessor(ctx, req, record, "fallback"); err == nil {
 			logrus.Infof("Payment processed successfully with fallback processor: %s", req.CorrelationID)
+			span.SetAttributes(attribute.String("payment.processor.used", "fallback"))
 			s.storage.StorePayment(record)
 			return record, nil
 		} else {
 			logrus.Errorf("Fallback processor failed for payment %s: %v", req.CorrelationID, err)
+			span.SetAttributes(attribute.String("payment.processor.fallback.error", err.Error()))
 		}
 	} else {
 		logrus.Warnf("Fallback processor not healthy for payment: %s", req.CorrelationID)
+		span.SetAttributes(attribute.Bool("payment.processor.fallback.unhealthy", true))
 	}
 
 	// if  both  fail, mark as failed but still store
@@ -100,10 +125,20 @@ func (s *PaymentService) ProcessPayment(req *models.PaymentRequest) (*models.Pay
 	s.storage.StorePayment(record)
 	logrus.Errorf("Both processors failed for payment: %s", req.CorrelationID)
 
+	span.SetStatus(codes.Error, "both payment processors are unavailable")
+	span.SetAttributes(attribute.String("payment.processor.used", "failed"))
+
 	return record, fmt.Errorf("both payment processors are unavailable")
 }
 
-func (s *PaymentService) processWithProcessor(req *models.PaymentRequest, record *models.PaymentRecord, processor string) error {
+func (s *PaymentService) processWithProcessor(ctx context.Context, req *models.PaymentRequest, record *models.PaymentRecord, processor string) error {
+	_, span := otel.Tracer("payment-service").Start(ctx, "processWithProcessor")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("payment.processor.name", processor),
+		attribute.String("payment.correlation_id", req.CorrelationID),
+	)
 	var url string
 	switch processor {
 	case "default":
@@ -127,21 +162,28 @@ func (s *PaymentService) processWithProcessor(req *models.PaymentRequest, record
 	}
 
 	// make request
-	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
+		span.RecordError(err)
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
+	span.SetAttributes(attribute.String("http.url", url))
 
 	resp, err := s.client.Do(httpReq)
 	if err != nil {
+		span.RecordError(err)
 		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
+	span.SetAttributes(attribute.Int("http.status_code", resp.StatusCode))
+
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("processor returned status %d", resp.StatusCode)
+		err := fmt.Errorf("processor returned status %d", resp.StatusCode)
+		span.RecordError(err)
+		return err
 	}
 
 	// parse response

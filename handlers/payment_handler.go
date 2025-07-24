@@ -84,7 +84,7 @@ func (h *PaymentHandler) GetPaymentDetails(c *gin.Context) {
 	c.JSON(http.StatusOK, record)
 }
 
-// GetServiceHealth handles GET /payments/service-health
+// GetServiceHealth GET  /payments/service-health
 func (h *PaymentHandler) GetServiceHealth(c *gin.Context) {
 	config := h.storage.GetConfig()
 

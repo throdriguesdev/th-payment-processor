@@ -2,10 +2,11 @@ package storage
 
 import (
 	"fmt"
-	"github.com/google/uuid"
 	"rinha-backend/internal/models"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type InMemoryStorage struct {
@@ -20,7 +21,6 @@ func NewInMemoryStorage() *InMemoryStorage {
 		byID:     make(map[uuid.UUID]*models.PaymentRecord),
 	}
 }
-
 func (s *InMemoryStorage) StorePayment(record *models.PaymentRecord) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -29,9 +29,9 @@ func (s *InMemoryStorage) StorePayment(record *models.PaymentRecord) {
 	s.byID[record.ID] = record
 
 	// Debug logging
-	fmt.Printf("[DEBUG] Stored payment: ID=%s, CorrelationID=%s, Amount=%.2f, Processor=%s, Success=%v\n",
-		record.ID, record.CorrelationID, record.Amount, record.Processor, record.Success)
-	fmt.Printf("[DEBUG] Total payments in storage: %d\n", len(s.payments))
+	// fmt.Printf("[DEBUG] Stored payment: ID=%s, CorrelationID=%s, Amount=%.2f, Processor=%s, Success=%v\n",
+	// 	record.ID, record.CorrelationID, record.Amount, record.Processor, record.Success)
+	// fmt.Printf("[DEBUG] Total payments in storage: %d\n", len(s.payments))
 }
 
 func (s *InMemoryStorage) GetPaymentByCorrelationID(correlationID string) (*models.PaymentRecord, bool) {

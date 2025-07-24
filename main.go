@@ -4,16 +4,25 @@ import (
 	"context"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"rinha-backend/internal/config"
 	"rinha-backend/internal/handlers"
 	"rinha-backend/internal/services"
 	"rinha-backend/internal/storage"
+	"rinha-backend/internal/tracing"
 )
 
 func main() {
 	// logs
 	logrus.SetFormatter(&logrus.JSONFormatter{})
 	logrus.SetLevel(logrus.InfoLevel)
+
+	// tracing
+	shutdown, err := tracing.InitTracer()
+	if err != nil {
+		logrus.Fatalf("Failed to initialize tracing: %v", err)
+	}
+	defer shutdown()
 
 	// configs
 	cfg := config.Load()
@@ -38,6 +47,7 @@ func main() {
 	//  middleware
 	router.Use(gin.Recovery())
 	router.Use(gin.Logger())
+	router.Use(otelgin.Middleware("rinha-backend"))
 
 	//  routes
 	router.POST("/payments", handler.ProcessPayment)

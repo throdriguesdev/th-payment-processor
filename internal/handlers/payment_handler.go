@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"net/http"
-	"time"
-	"rinha-backend/internal/models"
-	"rinha-backend/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	"net/http"
+	"rinha-backend/internal/models"
+	"rinha-backend/internal/services"
+	"time"
 )
 
 type PaymentHandler struct {
@@ -26,7 +26,7 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
-	
+
 	// Process payment
 	_, err := h.paymentService.ProcessPayment(&req)
 	if err != nil {
@@ -34,7 +34,7 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Payment processing failed"})
 		return
 	}
-	
+
 	// Return success response (any 2XX status is valid)
 	c.JSON(http.StatusOK, gin.H{"message": "Payment processed successfully"})
 }
@@ -43,9 +43,9 @@ func (h *PaymentHandler) GetPaymentsSummary(c *gin.Context) {
 	// Parse query parameters
 	fromStr := c.Query("from")
 	toStr := c.Query("to")
-	
+
 	var from, to *time.Time
-	
+
 	if fromStr != "" {
 		if parsed, err := time.Parse(time.RFC3339, fromStr); err == nil {
 			from = &parsed
@@ -55,7 +55,7 @@ func (h *PaymentHandler) GetPaymentsSummary(c *gin.Context) {
 			return
 		}
 	}
-	
+
 	if toStr != "" {
 		if parsed, err := time.Parse(time.RFC3339, toStr); err == nil {
 			to = &parsed
@@ -65,9 +65,9 @@ func (h *PaymentHandler) GetPaymentsSummary(c *gin.Context) {
 			return
 		}
 	}
-	
+
 	// Get summary from storage
 	summary := h.paymentService.GetPaymentsSummary(from, to)
-	
+
 	c.JSON(http.StatusOK, summary)
-} 
+}
