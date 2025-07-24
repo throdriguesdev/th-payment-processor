@@ -30,15 +30,15 @@ safe_run() {
 # Stop backend services
 echo -e "\n${YELLOW}🛑 Stopping Rinha Backend services...${NC}"
 cd "$PROJECT_ROOT"
-safe_run "docker-compose down" "Stopping backend containers"
-safe_run "docker-compose down --volumes" "Removing backend volumes"
+safe_run "docker compose down" "Stopping backend containers"
+safe_run "docker compose down --volumes" "Removing backend volumes"
 
 # Stop payment processor services
 if [ -d "$PROCESSORS_PATH" ]; then
     echo -e "\n${YELLOW}🛑 Stopping Payment Processor services...${NC}"
     cd "$PROCESSORS_PATH"
-    safe_run "docker-compose down" "Stopping processor containers"
-    safe_run "docker-compose down --volumes" "Removing processor volumes"
+    safe_run "docker compose down" "Stopping processor containers"
+    safe_run "docker compose down --volumes" "Removing processor volumes"
 else
     echo -e "${YELLOW}⚠️ Payment processors directory not found, skipping...${NC}"
 fi

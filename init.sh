@@ -53,7 +53,7 @@ if ! command_exists docker; then
     exit 1
 fi
 
-if ! command_exists docker-compose; then
+if ! docker compose version >/dev/null 2>&1; then
     echo -e "${RED}❌ Docker Compose is not installed${NC}"
     exit 1
 fi
@@ -74,10 +74,10 @@ echo -e "\n${YELLOW}🏭 Starting Payment Processors...${NC}"
 cd "$PROCESSORS_PATH"
 
 # Stop existing processors if running
-docker-compose down >/dev/null 2>&1 || true
+docker compose down >/dev/null 2>&1 || true
 
 # Start processors
-if ! docker-compose up -d; then
+if ! docker compose up -d; then
     echo -e "${RED}❌ Failed to start payment processors${NC}"
     exit 1
 fi
@@ -93,10 +93,10 @@ echo -e "\n${YELLOW}🏗️ Starting Rinha Backend...${NC}"
 cd "$PROJECT_ROOT"
 
 # Stop existing backend if running
-docker-compose down >/dev/null 2>&1 || true
+docker compose down >/dev/null 2>&1 || true
 
 # Build and start backend
-if ! docker-compose up -d --build; then
+if ! docker compose up -d --build; then
     echo -e "${RED}❌ Failed to start rinha backend${NC}"
     exit 1
 fi
@@ -110,11 +110,11 @@ wait_for_service "http://localhost:9999/payments-summary" "Rinha Backend"
 echo -e "\n${YELLOW}🔍 Verifying services...${NC}"
 
 echo "Backend services:"
-docker-compose ps
+docker compose ps
 
 echo -e "\nPayment processor services:"
 cd "$PROCESSORS_PATH"
-docker-compose ps
+docker compose ps
 
 # Step 8: Run basic health checks
 echo -e "\n${YELLOW}🩺 Running health checks...${NC}"
@@ -174,8 +174,8 @@ echo '    -H "Content-Type: application/json" \'
 echo '    -d '"'"'{"correlationId":"test-123","amount":100.00}'"'"
 
 echo -e "\n${BLUE}📊 Monitor Services:${NC}"
-echo "• Backend logs: docker-compose logs -f"
-echo "• Processor logs: cd ../payment-processors && docker-compose logs -f"
+echo "• Backend logs: docker compose logs -f"
+echo "• Processor logs: cd ../payment-processors && docker compose logs -f"
 echo "• Payments summary: curl http://localhost:9999/payments-summary"
 
 echo -e "\n${YELLOW}💡 Tip: Use ./cleanup.sh to stop all services when done${NC}"
