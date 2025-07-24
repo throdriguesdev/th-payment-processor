@@ -38,8 +38,6 @@
    curl http://localhost:9999/payments-summary
    ```
 
-## Configuration ✅ **CORRECTED**
-
 ### Backend Environment Variables
 
 - `SERVER_PORT`: Backend service port (default: 8080)
@@ -81,8 +79,6 @@
      -H "X-Rinha-Token: 123" \
      -d '{"failure":true}'
    ```
-
-## System Features ✅ **CORRECTED**
 
 ### Health Monitoring
 
