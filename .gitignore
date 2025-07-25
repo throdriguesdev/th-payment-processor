@@ -4,7 +4,9 @@
 *.dll
 *.so
 *.dylib
-
+rinha-backend
+rinha-backend.exe
+.claude/
 # Test binary, built with `go test -c`
 *.test
 
@@ -37,6 +39,6 @@ Thumbs.db
 # Environment files
 .env
 .env.local
-
 # Docker
 .dockerignore 
+req.md

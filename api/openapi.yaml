@@ -1,0 +1,149 @@
+openapi: 3.0.3
+info:
+  title: Rinha Backend - Payment Processing API
+  description: High-performance payment processing intermediary service with smart routing
+  version: 1.0.0
+  contact:
+    name: Rinha Backend Team
+  license:
+    name: MIT
+    
+servers:
+  - url: http://localhost:9999
+    description: Local development server
+
+paths:
+  /payments:
+    post:
+      summary: Process a payment
+      description: Process a payment with intelligent routing to default or fallback processor
+      operationId: processPayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+            example:
+              correlationId: "4a7901b8-7d26-4d9d-aa19-4dc1c7cf60b3"
+              amount: 19.90
+      responses:
+        '200':
+          description: Payment processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Payment processed successfully"
+        '400':
+          description: Invalid request format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Payment processing failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /payments-summary:
+    get:
+      summary: Get payment summary
+      description: Get aggregated payment summary with optional time filtering
+      operationId: getPaymentsSummary
+      parameters:
+        - name: from
+          in: query
+          description: Start time filter (ISO 8601 UTC format)
+          schema:
+            type: string
+            format: date-time
+          example: "2020-07-10T12:34:56.000Z"
+        - name: to
+          in: query
+          description: End time filter (ISO 8601 UTC format)
+          schema:
+            type: string
+            format: date-time
+          example: "2020-07-10T12:35:56.000Z"
+      responses:
+        '200':
+          description: Payment summary retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentSummary'
+        '400':
+          description: Invalid time filter format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    PaymentRequest:
+      type: object
+      required:
+        - correlationId
+        - amount
+      properties:
+        correlationId:
+          type: string
+          format: uuid
+          description: Unique correlation ID for the payment
+          example: "4a7901b8-7d26-4d9d-aa19-4dc1c7cf60b3"
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+          description: Payment amount (must be positive)
+          example: 19.90
+
+    PaymentSummary:
+      type: object
+      required:
+        - default
+        - fallback
+      properties:
+        default:
+          $ref: '#/components/schemas/ProcessorSummary'
+        fallback:
+          $ref: '#/components/schemas/ProcessorSummary'
+
+    ProcessorSummary:
+      type: object
+      required:
+        - totalRequests
+        - totalAmount
+      properties:
+        totalRequests:
+          type: integer
+          minimum: 0
+          description: Total number of payment requests processed
+          example: 43236
+        totalAmount:
+          type: number
+          format: double
+          minimum: 0
+          description: Total amount of payments processed
+          example: 415542345.98
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Invalid request format"
+
+tags:
+  - name: payments
+    description: Payment processing operations
+  - name: summary
+    description: Payment summary and reporting
