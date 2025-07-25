@@ -12,7 +12,7 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o rinha-backend ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o th_payment_processor ./cmd/server
 
 # Final stage
 FROM alpine:latest
@@ -22,10 +22,10 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 
 # Copy the binary from builder stage
-COPY --from=builder /app/rinha-backend .
+COPY --from=builder /app/th_payment_processor .
 
 # Expose port
 EXPOSE 8080
 
 # Run the application
-CMD ["./rinha-backend"] 
+CMD ["./th_payment_processor"] 

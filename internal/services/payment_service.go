@@ -12,9 +12,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"net/http"
-	"rinha-backend/internal/config"
-	"rinha-backend/internal/models"
-	"rinha-backend/internal/storage"
+	"th_payment_processor/internal/config"
+	"th_payment_processor/internal/models"
+	"th_payment_processor/internal/storage"
 	"sync"
 	"time"
 )

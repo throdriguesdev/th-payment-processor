@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Cleanup Script for Rinha Backend Environment
+# Cleanup Script for TH Payment Processor Environment
 # Stops all services and cleans up Docker resources
 
 GREEN='\033[0;32m'
@@ -13,7 +13,7 @@ PROJECT_ROOT="$(dirname "$(pwd)")"  # Go back one level from scripts/
 PROCESSORS_PATH="../payment-processors"
 DEPLOYMENTS_PATH="${PROJECT_ROOT}/deployments"
 
-echo -e "${BLUE}🧹 Cleaning up Rinha Backend Environment...${NC}"
+echo -e "${BLUE}🧹 Cleaning up TH Payment Processor Environment...${NC}"
 
 # Function to safely run commands
 safe_run() {
@@ -29,7 +29,7 @@ safe_run() {
 }
 
 # Stop backend services
-echo -e "\n${YELLOW}🛑 Stopping Rinha Backend services...${NC}"
+echo -e "\n${YELLOW}🛑 Stopping TH Payment Processor services...${NC}"
 cd "$DEPLOYMENTS_PATH"
 safe_run "docker compose down" "Stopping backend containers"
 safe_run "docker compose down --volumes" "Removing backend volumes"

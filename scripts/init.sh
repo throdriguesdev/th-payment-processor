@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Rinha Backend Initialization Script
+# TH Payment Processor Initialization Script
 # Sets up and starts the complete payment processing environment
 
 set -e  # Exit on any error
@@ -15,7 +15,7 @@ PROJECT_ROOT="$(dirname "$(pwd)")"  # Go back one level from scripts/
 PROCESSORS_PATH="../payment-processors"
 DEPLOYMENTS_PATH="${PROJECT_ROOT}/deployments"
 
-echo -e "${BLUE}🚀 Initializing Rinha Backend Environment...${NC}"
+echo -e "${BLUE}🚀 Initializing TH Payment Processor Environment...${NC}"
 
 # Function to check if command exists
 command_exists() {
@@ -90,7 +90,7 @@ wait_for_service "http://localhost:8001/payments/service-health" "Default Paymen
 wait_for_service "http://localhost:8002/payments/service-health" "Fallback Payment Processor"
 
 # Step 5: Start backend application
-echo -e "\n${YELLOW}🏗️ Starting Rinha Backend...${NC}"
+echo -e "\n${YELLOW}🏗️ Starting TH Payment Processor...${NC}"
 cd "$DEPLOYMENTS_PATH"
 
 # Stop existing backend if running
@@ -105,7 +105,7 @@ fi
 echo -e "${GREEN}✅ Rinha backend starting...${NC}"
 
 # Step 6: Wait for backend to be ready
-wait_for_service "http://localhost:9999/payments-summary" "Rinha Backend"
+wait_for_service "http://localhost:9999/payments-summary" "TH Payment Processor"
 
 # Step 7: Verify all services are running
 echo -e "\n${YELLOW}🔍 Verifying services...${NC}"

@@ -5,7 +5,7 @@ This document describes the improved project structure following Go best practic
 ## Directory Layout
 
 ```
-rinha-backend/
+th_payment_processor/
 ├── README.md                    # Project overview and quick start
 ├── Makefile                     # Build automation and common tasks
 ├── go.mod                       # Go module definition

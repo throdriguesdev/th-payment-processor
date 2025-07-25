@@ -1,9 +1,9 @@
 package services
 
 import (
-	"rinha-backend/internal/config"
-	"rinha-backend/internal/models"
-	"rinha-backend/internal/storage"
+	"th_payment_processor/internal/config"
+	"th_payment_processor/internal/models"
+	"th_payment_processor/internal/storage"
 	"testing"
 	"time"
 )

@@ -1,4 +1,4 @@
-# Rinha Backend Makefile
+# TH Payment Processor Makefile
 
 .PHONY: help build run test clean init deploy logs
 
@@ -17,12 +17,12 @@ help:
 
 # Build the application
 build:
-	@echo "Building rinha-backend..."
-	@CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bin/rinha-backend ./cmd/server
+	@echo "Building th_payment_processor..."
+	@CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bin/th_payment_processor ./cmd/server
 
 # Run the application locally (for development)
 run:
-	@echo "Running rinha-backend locally..."
+	@echo "Running th_payment_processor locally..."
 	@go run ./cmd/server
 
 # Run tests

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Payment Processing Test Suite
-# Tests the rinha-backend payment processing functionality
+# Tests the TH Payment Processor functionality
 
 BASE_URL="http://localhost:9999"
 GREEN='\033[0;32m'

@@ -4,6 +4,8 @@
 *.dll
 *.so
 *.dylib
+th_payment_processor
+th_payment_processor.exe
 rinha-backend
 rinha-backend.exe
 .claude/

@@ -13,7 +13,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 )
 
-const ServiceName = "rinha-backend"
+const ServiceName = "th-payment-processor"
 
 func InitTracer() (func(), error) {
 	jaegerEndpoint := os.Getenv("JAEGER_ENDPOINT")

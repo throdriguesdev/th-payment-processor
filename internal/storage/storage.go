@@ -2,7 +2,7 @@ package storage
 
 import (
 	"fmt"
-	"rinha-backend/internal/models"
+	"th_payment_processor/internal/models"
 	"sync"
 	"time"
 

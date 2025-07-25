@@ -1,10 +1,10 @@
 openapi: 3.0.3
 info:
-  title: Rinha Backend - Payment Processing API
+  title: TH Payment Processor API
   description: High-performance payment processing intermediary service with smart routing
   version: 1.0.0
   contact:
-    name: Rinha Backend Team
+    name: TH Development Team
   license:
     name: MIT
     

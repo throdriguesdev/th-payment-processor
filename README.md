@@ -1,7 +1,7 @@
 
-# Rinha Backend - Payment Processing Service
+# TH Payment Processor
 
-High-performance payment processing intermediary service designed for the Rinha de Backend competition. Features intelligent payment routing, automatic failover, and comprehensive testing suite.
+High-performance payment processing intermediary service with intelligent routing, automatic failover, and comprehensive testing suite. Originally designed for the Rinha de Backend competition.
 
 ## Quick Start
 
@@ -49,7 +49,7 @@ cd scripts
 ## Architecture
 
 ```
-Client → Nginx Load Balancer → App1/App2 → Payment Processors
+Client → Nginx Load Balancer → App1/App2 → External Payment Processors
                                    ↓
                             In-Memory Storage
                                    ↓

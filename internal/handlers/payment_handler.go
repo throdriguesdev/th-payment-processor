@@ -4,8 +4,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"net/http"
-	"rinha-backend/internal/models"
-	"rinha-backend/internal/services"
+	"th_payment_processor/internal/models"
+	"th_payment_processor/internal/services"
 	"time"
 )
 

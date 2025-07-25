@@ -5,11 +5,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
-	"rinha-backend/internal/config"
-	"rinha-backend/internal/handlers"
-	"rinha-backend/internal/services"
-	"rinha-backend/internal/storage"
-	"rinha-backend/internal/tracing"
+	"th_payment_processor/internal/config"
+	"th_payment_processor/internal/handlers"
+	"th_payment_processor/internal/services"
+	"th_payment_processor/internal/storage"
+	"th_payment_processor/internal/tracing"
 )
 
 func main() {
