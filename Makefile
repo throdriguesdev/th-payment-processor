@@ -10,9 +10,9 @@ help:
 	@echo "  run      - Run the application locally"
 	@echo "  test     - Run all tests"
 	@echo "  init     - Initialize complete environment (processors + backend)"
-	@echo "  deploy   - Deploy only the backend services"
+	@echo "  deploy   - Deploy all services"
 	@echo "  clean    - Clean up all services and resources"
-	@echo "  logs     - Show backend logs"
+	@echo "  logs     - Show service logs"
 	@echo "  stress   - Run stress tests"
 
 # Build the application
@@ -38,9 +38,9 @@ init:
 	@echo "Initializing complete environment..."
 	@cd scripts && ./init.sh
 
-# Deploy backend services only
+# Deploy all services
 deploy:
-	@echo "Deploying backend services..."
+	@echo "Deploying all services..."
 	@cd deployments && docker compose up -d --build
 
 # Clean up all services
@@ -48,9 +48,9 @@ clean:
 	@echo "Cleaning up environment..."
 	@cd scripts && ./cleanup.sh
 
-# Show backend logs
+# Show service logs
 logs:
-	@echo "Showing backend logs..."
+	@echo "Showing service logs..."
 	@cd deployments && docker compose logs -f
 
 # Run stress tests

@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # Default Payment Processor (lower fee)
+  payment-processor-default:
+    build: .
+    ports:
+      - "8001:8080"
+    environment:
+      - PORT=8080
+      - FEE_PERCENTAGE=1.0
+      - MIN_RESPONSE_TIME=50
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "100MB"
+    networks:
+      - payment-processor
+
+  # Fallback Payment Processor (higher fee)
+  payment-processor-fallback:
+    build: .
+    ports:
+      - "8002:8080"
+    environment:
+      - PORT=8080
+      - FEE_PERCENTAGE=5.0
+      - MIN_RESPONSE_TIME=100
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "100MB"
+    networks:
+      - payment-processor
+
+networks:
+  payment-processor:
+    driver: bridge

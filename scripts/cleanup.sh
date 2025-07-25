@@ -10,7 +10,6 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 PROJECT_ROOT="$(dirname "$(pwd)")"  # Go back one level from scripts/
-PROCESSORS_PATH="../payment-processors"
 DEPLOYMENTS_PATH="${PROJECT_ROOT}/deployments"
 
 echo -e "${BLUE}🧹 Cleaning up TH Payment Processor Environment...${NC}"
@@ -28,24 +27,11 @@ safe_run() {
     fi
 }
 
-# Stop backend services
-echo -e "\n${YELLOW}🛑 Stopping TH Payment Processor services...${NC}"
-cd "$DEPLOYMENTS_PATH"
-safe_run "docker compose down" "Stopping backend containers"
-safe_run "docker compose down --volumes" "Removing backend volumes"
-
-# Stop payment processor services
-if [ -d "$PROCESSORS_PATH" ]; then
-    echo -e "\n${YELLOW}🛑 Stopping Payment Processor services...${NC}"
-    cd "$PROCESSORS_PATH"
-    safe_run "docker compose down" "Stopping processor containers"
-    safe_run "docker compose down --volumes" "Removing processor volumes"
-else
-    echo -e "${YELLOW}⚠️ Payment processors directory not found, skipping...${NC}"
-fi
-
-# Return to project root
-cd "$DEPLOYMENTS_PATH"
+# Stop all services
+echo -e "\n${YELLOW}🛑 Stopping all services...${NC}"
+safe_run "docker stop \$(docker ps -q) 2>/dev/null" "Stopping all running containers"
+safe_run "docker rm \$(docker ps -a -q) 2>/dev/null" "Removing all stopped containers"
+safe_run "docker volume prune -f" "Removing unused volumes"
 
 # Optional: Clean up Docker resources (commented out by default)
 echo -e "\n${YELLOW}🗑️ Optional cleanup (uncomment if needed):${NC}"

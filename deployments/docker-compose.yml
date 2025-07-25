@@ -72,9 +72,44 @@ services:
       - backend
       - payment-processor
 
+  # Default Payment Processor (lower fee)
+  payment-processor-default:
+    build:
+      context: ../payment-processors
+    ports:
+      - "8001:8080"
+    environment:
+      - PORT=8080
+      - FEE_PERCENTAGE=1.0
+      - MIN_RESPONSE_TIME=50
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "100MB"
+    networks:
+      - payment-processor
+
+  # Fallback Payment Processor (higher fee)
+  payment-processor-fallback:
+    build:
+      context: ../payment-processors
+    ports:
+      - "8002:8080"
+    environment:
+      - PORT=8080
+      - FEE_PERCENTAGE=5.0
+      - MIN_RESPONSE_TIME=100
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "100MB"
+    networks:
+      - payment-processor
+
 networks:
   backend:
     driver: bridge
   payment-processor:
-    external: true
-    name: payment-processors_payment-processor 
+    driver: bridge
