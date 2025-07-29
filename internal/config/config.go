@@ -33,7 +33,7 @@ func Load() *Config {
 	fallbackProcessorURL := getEnv("FALLBACK_PROCESSOR_URL", "http://payment-processor-fallback:8080")
 	
 	healthCheckInterval := getEnvAsDuration("HEALTH_CHECK_INTERVAL", 5*time.Second)
-	requestTimeout := getEnvAsDuration("REQUEST_TIMEOUT", 10*time.Second)
+	requestTimeout := getEnvAsDuration("REQUEST_TIMEOUT", 2*time.Second)
 
 	// Redis configuration
 	redisAddr := getEnv("REDIS_ADDR", "localhost:6379")

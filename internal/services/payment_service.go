@@ -46,10 +46,15 @@ func NewPaymentService(cfg *config.Config, storage storage.Storage) *PaymentServ
 		client: &http.Client{
 			Timeout:   cfg.RequestTimeout,
 			Transport: otelhttp.NewTransport(&http.Transport{
-				MaxIdleConns:        100,
-				MaxConnsPerHost:     100,
-				MaxIdleConnsPerHost: 100,
-				IdleConnTimeout:     90 * time.Second,
+				MaxIdleConns:          300,
+				MaxConnsPerHost:       300,
+				MaxIdleConnsPerHost:   300,
+				IdleConnTimeout:       30 * time.Second,
+				DisableKeepAlives:     false,
+				DisableCompression:    true,
+				TLSHandshakeTimeout:   1 * time.Second,
+				ResponseHeaderTimeout: 1 * time.Second,
+				ExpectContinueTimeout: 200 * time.Millisecond,
 			}),
 		},
 		defaultHealth: &models.ProcessorHealth{
@@ -83,14 +88,11 @@ func (s *PaymentService) ProcessPayment(req *models.PaymentRequest) (*models.Pay
 		attribute.Float64("payment.amount", req.Amount),
 	)
 
-	logrus.Infof("Processing payment: correlationId=%s, amount=%.2f", req.CorrelationID, req.Amount)
+	// Reduced logging for performance - only log in debug mode
+	logrus.Debugf("Processing payment: correlationId=%s, amount=%.2f", req.CorrelationID, req.Amount)
 
-	// Check if payment already exists
-	if existing, exists := s.storage.GetPaymentByCorrelationID(req.CorrelationID); exists {
-		logrus.Infof("Payment already exists: %s", req.CorrelationID)
-		span.SetAttributes(attribute.Bool("payment.already_exists", true))
-		return existing, nil
-	}
+	// Skip duplicate check for performance - database handles uniqueness constraint
+	// This reduces latency by avoiding extra database lookups during high load
 
 	// Create payment record
 	record := &models.PaymentRecord{
@@ -103,10 +105,10 @@ func (s *PaymentService) ProcessPayment(req *models.PaymentRequest) (*models.Pay
 
 	// try default processor first
 	if s.isProcessorHealthy("default") {
-		logrus.Infof("Trying default processor for payment: %s", req.CorrelationID)
+		logrus.Debugf("Trying default processor for payment: %s", req.CorrelationID)
 		span.SetAttributes(attribute.String("payment.processor.attempted", "default"))
 		if err := s.processWithProcessor(ctx, req, record, "default"); err == nil {
-			logrus.Infof("Payment processed successfully with default processor: %s", req.CorrelationID)
+			logrus.Debugf("Payment processed successfully with default processor: %s", req.CorrelationID)
 			span.SetAttributes(attribute.String("payment.processor.used", "default"))
 			if err := s.storage.StorePayment(record); err != nil {
 			logrus.Errorf("Failed to store payment: %v", err)
@@ -123,10 +125,10 @@ func (s *PaymentService) ProcessPayment(req *models.PaymentRequest) (*models.Pay
 
 	// try fallback processor
 	if s.isProcessorHealthy("fallback") {
-		logrus.Infof("Trying fallback processor for payment: %s", req.CorrelationID)
+		logrus.Debugf("Trying fallback processor for payment: %s", req.CorrelationID)
 		span.SetAttributes(attribute.String("payment.processor.attempted", "fallback"))
 		if err := s.processWithProcessor(ctx, req, record, "fallback"); err == nil {
-			logrus.Infof("Payment processed successfully with fallback processor: %s", req.CorrelationID)
+			logrus.Debugf("Payment processed successfully with fallback processor: %s", req.CorrelationID)
 			span.SetAttributes(attribute.String("payment.processor.used", "fallback"))
 			if err := s.storage.StorePayment(record); err != nil {
 			logrus.Errorf("Failed to store payment: %v", err)

@@ -63,13 +63,14 @@ func main() {
 	// init handlers
 	handler := handlers.NewPaymentHandler(paymentService)
 
-	//  Gin router
+	//  Gin router with performance optimizations
 	gin.SetMode(gin.ReleaseMode)
+	gin.DisableConsoleColor() // Reduce logging overhead
 	router := gin.New()
 
-	//  middleware
+	//  Minimal middleware for maximum performance
 	router.Use(gin.Recovery())
-	router.Use(gin.Logger())
+	// Skip gin.Logger() for performance - we have structured logging
 	router.Use(otelgin.Middleware("rinha-backend"))
 
 	//  routes

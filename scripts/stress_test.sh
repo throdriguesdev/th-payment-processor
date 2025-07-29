@@ -130,8 +130,9 @@ else
     echo -e "${RED}⚠️ Performance needs improvement (P99 >= 20ms)${NC}"
 fi
 
-# Error rate check
-ERROR_COUNT=$(grep -c "error\|Error\|ERROR" /tmp/stress_test_user_*.log 2>/dev/null || echo "0")
+# Error rate check - simplified approach
+ERROR_COUNT=$(find /tmp -name "stress_test_user_*.log" -exec grep -c "error\|Error\|ERROR" {} \; 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+
 if [ "$TOTAL_ACTUAL" -gt 0 ]; then
     ERROR_RATE=$(awk "BEGIN {printf \"%.4f\", $ERROR_COUNT / $TOTAL_ACTUAL * 100}")
 else

@@ -20,14 +20,16 @@ type RedisCache struct {
 
 func NewRedisCache(addr, password string, db int) (*RedisCache, error) {
 	rdb := redis.NewClient(&redis.Options{
-		Addr:         addr,
-		Password:     password,
-		DB:           db,
-		PoolSize:     10,
-		MinIdleConns: 2,
-		MaxRetries:   3,
-		ReadTimeout:  3 * time.Second,
-		WriteTimeout: 3 * time.Second,
+		Addr:            addr,
+		Password:        password,
+		DB:              db,
+		PoolSize:        20,  // More connections
+		MinIdleConns:    5,   // Keep more idle connections
+		MaxRetries:      1,   // Faster failure for sub-11ms
+		ReadTimeout:     1 * time.Second,  // Aggressive timeouts
+		WriteTimeout:    1 * time.Second,
+		DialTimeout:     500 * time.Millisecond,
+		PoolTimeout:     500 * time.Millisecond,
 	})
 
 	ctx := context.Background()
@@ -50,8 +52,8 @@ func (r *RedisCache) CachePayment(record *models.PaymentRecord) error {
 		return fmt.Errorf("failed to marshal payment record: %w", err)
 	}
 
-	// Cache for 1 hour
-	if err := r.client.Set(r.ctx, key, data, time.Hour).Err(); err != nil {
+	// Cache for 2 hours for better performance
+	if err := r.client.Set(r.ctx, key, data, 2*time.Hour).Err(); err != nil {
 		logrus.Errorf("Failed to cache payment: %v", err)
 		return fmt.Errorf("failed to cache payment: %w", err)
 	}
@@ -88,8 +90,8 @@ func (r *RedisCache) CachePaymentSummary(summary models.PaymentSummary, from, to
 		return fmt.Errorf("failed to marshal payment summary: %w", err)
 	}
 
-	// Cache summary for 30 seconds
-	if err := r.client.Set(r.ctx, key, data, 30*time.Second).Err(); err != nil {
+	// Cache summary for 60 seconds for better performance
+	if err := r.client.Set(r.ctx, key, data, 60*time.Second).Err(); err != nil {
 		logrus.Errorf("Failed to cache payment summary: %v", err)
 		return fmt.Errorf("failed to cache payment summary: %w", err)
 	}

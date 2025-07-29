@@ -32,10 +32,11 @@ func NewPostgresStorage(host, port, user, password, dbname, sslmode string) (*Po
 		return nil, fmt.Errorf("failed to create tables: %w", err)
 	}
 
-	// Configure connection pool for performance
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(5 * time.Minute)
+	// Aggressive connection pool for sub-11ms performance
+	db.SetMaxOpenConns(50)  // More connections for high concurrency
+	db.SetMaxIdleConns(10)  // Keep more idle connections ready
+	db.SetConnMaxLifetime(2 * time.Minute)  // Shorter lifetime for fresh connections
+	db.SetConnMaxIdleTime(30 * time.Second) // Close idle connections faster
 
 	logrus.Info("Connected to PostgreSQL database")
 	return storage, nil
@@ -67,11 +68,7 @@ func (s *PostgresStorage) StorePayment(record *models.PaymentRecord) error {
 	query := `
 		INSERT INTO payments (id, correlation_id, amount, processor, processed_at, success)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (correlation_id) DO UPDATE SET
-			amount = EXCLUDED.amount,
-			processor = EXCLUDED.processor,
-			processed_at = EXCLUDED.processed_at,
-			success = EXCLUDED.success
+		ON CONFLICT (correlation_id) DO NOTHING
 	`
 
 	_, err := s.db.Exec(query,
