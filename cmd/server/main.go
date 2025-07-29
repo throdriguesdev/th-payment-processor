@@ -27,11 +27,34 @@ func main() {
 	// configs
 	cfg := config.Load()
 
-	//  storage
-	storage := storage.NewInMemoryStorage()
+	// initialize storage based on configuration
+	var storageImpl storage.Storage
+	
+	// Try to initialize hybrid storage (PostgreSQL + Redis)
+	postgresStorage, err := storage.NewPostgresStorage(
+		cfg.PostgresHost,
+		cfg.PostgresPort,
+		cfg.PostgresUser,
+		cfg.PostgresPassword,
+		cfg.PostgresDB,
+		cfg.PostgresSSLMode,
+	)
+	if err != nil {
+		logrus.Warnf("Failed to initialize PostgreSQL: %v. Falling back to in-memory storage", err)
+		storageImpl = storage.NewInMemoryStorage()
+	} else {
+		redisCache, err := storage.NewRedisCache(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB)
+		if err != nil {
+			logrus.Warnf("Failed to initialize Redis: %v. Using PostgreSQL only", err)
+			storageImpl = postgresStorage
+		} else {
+			logrus.Info("Using hybrid storage (PostgreSQL + Redis)")
+			storageImpl = storage.NewHybridStorage(postgresStorage, redisCache)
+		}
+	}
 
 	// init services
-	paymentService := services.NewPaymentService(cfg, storage)
+	paymentService := services.NewPaymentService(cfg, storageImpl)
 
 	//  health monitoring in background
 	ctx := context.Background()
@@ -52,6 +75,7 @@ func main() {
 	//  routes
 	router.POST("/payments", handler.ProcessPayment)
 	router.GET("/payments-summary", handler.GetPaymentsSummary)
+	router.GET("/health", handler.GetHealthStatus)
 
 	logrus.Infof("Starting rinha-backend on port %s", cfg.ServerPort)
 	if err := router.Run(":" + cfg.ServerPort); err != nil {

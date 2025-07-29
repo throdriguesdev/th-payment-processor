@@ -9,6 +9,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// Storage interface for payment storage operations
+type Storage interface {
+	StorePayment(record *models.PaymentRecord) error
+	GetPaymentByCorrelationID(correlationID string) (*models.PaymentRecord, bool)
+	GetPaymentsSummary(from, to *time.Time) models.PaymentSummary
+	GetAllPayments() []*models.PaymentRecord
+}
+
 type InMemoryStorage struct {
 	mu       sync.RWMutex
 	payments map[string]*models.PaymentRecord
@@ -21,7 +29,7 @@ func NewInMemoryStorage() *InMemoryStorage {
 		byID:     make(map[uuid.UUID]*models.PaymentRecord),
 	}
 }
-func (s *InMemoryStorage) StorePayment(record *models.PaymentRecord) {
+func (s *InMemoryStorage) StorePayment(record *models.PaymentRecord) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -32,6 +40,8 @@ func (s *InMemoryStorage) StorePayment(record *models.PaymentRecord) {
 	// fmt.Printf("[DEBUG] Stored payment: ID=%s, CorrelationID=%s, Amount=%.2f, Processor=%s, Success=%v\n",
 	// 	record.ID, record.CorrelationID, record.Amount, record.Processor, record.Success)
 	// fmt.Printf("[DEBUG] Total payments in storage: %d\n", len(s.payments))
+	
+	return nil
 }
 
 func (s *InMemoryStorage) GetPaymentByCorrelationID(correlationID string) (*models.PaymentRecord, bool) {

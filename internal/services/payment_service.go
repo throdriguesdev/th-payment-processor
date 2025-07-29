@@ -5,23 +5,24 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"sync"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"net/http"
 	"th_payment_processor/internal/config"
 	"th_payment_processor/internal/models"
 	"th_payment_processor/internal/storage"
-	"sync"
-	"time"
 )
 
 type PaymentService struct {
 	config  *config.Config
-	storage *storage.InMemoryStorage
+	storage storage.Storage
 	client  *http.Client
 
 	// Health monitoring
@@ -33,15 +34,23 @@ type PaymentService struct {
 	lastDefaultHealthCheck  time.Time
 	lastFallbackHealthCheck time.Time
 	healthCheckMu           sync.Mutex
+
+	// Performance optimizations
+	requestPool sync.Pool
 }
 
-func NewPaymentService(cfg *config.Config, storage *storage.InMemoryStorage) *PaymentService {
-	return &PaymentService{
+func NewPaymentService(cfg *config.Config, storage storage.Storage) *PaymentService {
+	service := &PaymentService{
 		config:  cfg,
 		storage: storage,
 		client: &http.Client{
 			Timeout:   cfg.RequestTimeout,
-			Transport: otelhttp.NewTransport(http.DefaultTransport),
+			Transport: otelhttp.NewTransport(&http.Transport{
+				MaxIdleConns:        100,
+				MaxConnsPerHost:     100,
+				MaxIdleConnsPerHost: 100,
+				IdleConnTimeout:     90 * time.Second,
+			}),
 		},
 		defaultHealth: &models.ProcessorHealth{
 			IsHealthy: true,
@@ -52,6 +61,15 @@ func NewPaymentService(cfg *config.Config, storage *storage.InMemoryStorage) *Pa
 			LastCheck: time.Now(),
 		},
 	}
+
+	// Initialize object pool for request reuse
+	service.requestPool = sync.Pool{
+		New: func() interface{} {
+			return &models.PaymentProcessorRequest{}
+		},
+	}
+
+	return service
 }
 
 func (s *PaymentService) ProcessPayment(req *models.PaymentRequest) (*models.PaymentRecord, error) {
@@ -90,7 +108,9 @@ func (s *PaymentService) ProcessPayment(req *models.PaymentRequest) (*models.Pay
 		if err := s.processWithProcessor(ctx, req, record, "default"); err == nil {
 			logrus.Infof("Payment processed successfully with default processor: %s", req.CorrelationID)
 			span.SetAttributes(attribute.String("payment.processor.used", "default"))
-			s.storage.StorePayment(record)
+			if err := s.storage.StorePayment(record); err != nil {
+			logrus.Errorf("Failed to store payment: %v", err)
+		}
 			return record, nil
 		} else {
 			logrus.Errorf("Default processor failed for payment %s: %v", req.CorrelationID, err)
@@ -108,7 +128,9 @@ func (s *PaymentService) ProcessPayment(req *models.PaymentRequest) (*models.Pay
 		if err := s.processWithProcessor(ctx, req, record, "fallback"); err == nil {
 			logrus.Infof("Payment processed successfully with fallback processor: %s", req.CorrelationID)
 			span.SetAttributes(attribute.String("payment.processor.used", "fallback"))
-			s.storage.StorePayment(record)
+			if err := s.storage.StorePayment(record); err != nil {
+			logrus.Errorf("Failed to store payment: %v", err)
+		}
 			return record, nil
 		} else {
 			logrus.Errorf("Fallback processor failed for payment %s: %v", req.CorrelationID, err)
@@ -148,12 +170,14 @@ func (s *PaymentService) processWithProcessor(ctx context.Context, req *models.P
 		return fmt.Errorf("unknown processor: %s", processor)
 	}
 
-	// prepare request
-	processorReq := models.PaymentProcessorRequest{
-		CorrelationID: req.CorrelationID,
-		Amount:        req.Amount,
-		RequestedAt:   time.Now(),
-	}
+	// Get request object from pool
+	processorReq := s.requestPool.Get().(*models.PaymentProcessorRequest)
+	defer s.requestPool.Put(processorReq)
+	
+	// Reset and populate request
+	processorReq.CorrelationID = req.CorrelationID
+	processorReq.Amount = req.Amount
+	processorReq.RequestedAt = time.Now()
 
 	jsonData, err := json.Marshal(processorReq)
 	if err != nil {
