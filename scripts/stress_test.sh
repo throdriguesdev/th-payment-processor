@@ -36,7 +36,7 @@ run_user_load() {
     
     for i in $(seq 1 "$requests"); do
         correlation_id="stress-test-${user_id}-$(printf "%04d" $i)-$(date +%s%N)"
-        amount=$(echo "scale=2; ($i % 1000) + 1" | bc)
+        amount=$(awk "BEGIN {printf \"%.2f\", ($i % 1000) + 1}")
         
         response_time=$(curl -X POST "${BASE_URL}/payments" \
             -H "Content-Type: application/json" \
@@ -48,7 +48,7 @@ run_user_load() {
             -s -o /dev/null)
         
         # Convert to milliseconds and log
-        ms_time=$(echo "$response_time * 1000" | bc)
+        ms_time=$(awk "BEGIN {printf \"%.2f\", $response_time * 1000}")
         echo "$ms_time" >> "$results_file"
     done
 }
@@ -103,7 +103,11 @@ echo -e "\n${BLUE}📈 Stress Test Results${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Duration: ${DURATION}s"
 echo "Total Requests: $TOTAL_ACTUAL"
-echo "Requests/second: $(echo "scale=2; $TOTAL_ACTUAL / $DURATION" | bc)"
+if [ "$DURATION" -gt 0 ]; then
+    echo "Requests/second: $(awk "BEGIN {printf \"%.2f\", $TOTAL_ACTUAL / $DURATION}")"
+else
+    echo "Requests/second: $(awk "BEGIN {printf \"%.2f\", $TOTAL_ACTUAL}")"
+fi
 echo ""
 echo "Response Times (ms):"
 echo "• Min:  $(printf '%.2f' "$MIN_TIME")"
@@ -115,11 +119,12 @@ echo "• P99:  $(printf '%.2f' "$P99")"
 
 # Performance evaluation
 echo ""
-if (( $(echo "$P99 < 11" | bc -l) )); then
-    BONUS=$(echo "scale=2; (11 - $P99) * 0.02 * 100" | bc)
+# Use awk for floating point comparison to avoid bc issues
+if awk "BEGIN {exit !($P99 < 11)}"; then
+    BONUS=$(awk "BEGIN {printf \"%.2f\", (11 - $P99) * 0.02 * 100}")
     echo -e "${GREEN}🎉 EXCELLENT! P99 < 11ms target achieved!${NC}"
     echo -e "${GREEN}Performance Bonus: ${BONUS}%${NC}"
-elif (( $(echo "$P99 < 20" | bc -l) )); then
+elif awk "BEGIN {exit !($P99 < 20)}"; then
     echo -e "${YELLOW}✅ Good performance (P99 < 20ms)${NC}"
 else
     echo -e "${RED}⚠️ Performance needs improvement (P99 >= 20ms)${NC}"
@@ -127,7 +132,11 @@ fi
 
 # Error rate check
 ERROR_COUNT=$(grep -c "error\|Error\|ERROR" /tmp/stress_test_user_*.log 2>/dev/null || echo "0")
-ERROR_RATE=$(echo "scale=4; $ERROR_COUNT / $TOTAL_ACTUAL * 100" | bc)
+if [ "$TOTAL_ACTUAL" -gt 0 ]; then
+    ERROR_RATE=$(awk "BEGIN {printf \"%.4f\", $ERROR_COUNT / $TOTAL_ACTUAL * 100}")
+else
+    ERROR_RATE="0.0000"
+fi
 echo "Error Rate: ${ERROR_RATE}%"
 
 # Final summary

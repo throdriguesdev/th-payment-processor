@@ -112,14 +112,13 @@ fi
 # Step 6: Test basic payment processing
 echo -e "\n${YELLOW}💳 Testing basic payment processing...${NC}"
 
-TEST_RESPONSE=$(curl -s -w "%\{http_code\}" -X POST "http://localhost:9999/payments" \
+HTTP_CODE=$(curl -s -w "%{http_code}" -o /dev/null -X POST "http://localhost:9999/payments" \
   -H "Content-Type: application/json" \
   -d '{
     "correlationId": "init-test-001",
     "amount": 10.00
   }')
 
-HTTP_CODE="${TEST_RESPONSE: -3}"
 if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
     echo -e "${GREEN}✅ Payment processing test successful${NC}"
 else
@@ -137,9 +136,9 @@ echo -e "\n${BLUE}🧪 Test Commands:${NC}"
 echo "• Run payment tests: ./test_payments.sh"
 echo "• Run processor tests: ./test_processors.sh"
 echo "• Manual payment test:"
-echo '  curl -X POST http://localhost:9999/payments \'\
-'    -H "Content-Type: application/json" \'\
-'    -d '"'"'{\"correlationId\":\"test-123\",\"amount\":100.00}'"'"'
+echo '  curl -X POST http://localhost:9999/payments \'
+echo '    -H "Content-Type: application/json" \'
+echo '    -d '\''{"correlationId":"test-123","amount":100.00}'\'''
 
 echo -e "\n${BLUE}📊 Monitor Services:${NC}"
 echo "• Logs: cd deployments && docker compose logs -f"
