@@ -30,3 +30,9 @@ scrape_configs:
       - targets: ['payment-processor-fallback:2112']
     scrape_interval: 5s
     metrics_path: '/metrics'
+
+  - job_name: 'jaeger'
+    static_configs:
+      - targets: ['jaeger:14269']
+    scrape_interval: 15s
+    metrics_path: '/metrics'

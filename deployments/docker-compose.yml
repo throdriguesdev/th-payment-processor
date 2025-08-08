@@ -53,8 +53,11 @@ services:
     ports:
       - "16686:16686"
       - "14268:14268"
+      - "14269:14269"  # Admin port for metrics
     environment:
       - COLLECTOR_OTLP_ENABLED=true
+      - METRICS_STORAGE_TYPE=prometheus
+      - PROMETHEUS_SERVER_URL=http://prometheus:9090
     networks:
       - backend
 

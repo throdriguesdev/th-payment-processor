@@ -32,15 +32,15 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 	response, err := h.paymentService.ProcessPayment(&req)
 	if err != nil {
 		logrus.Errorf("Payment processing failed: %v", err)
-		// Record failed payment
-		metrics.RecordPaymentAmount(req.Amount, "unknown", "failed")
+		// Record failed payment with trace context
+		metrics.RecordPaymentAmountWithContext(c.Request.Context(), req.Amount, "unknown", "failed")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Payment processing failed"})
 		return
 	}
 
-	// Record successful payment metrics
+	// Record successful payment metrics with trace context
 	if response != nil {
-		metrics.RecordPaymentAmount(req.Amount, response.Processor, "success")
+		metrics.RecordPaymentAmountWithContext(c.Request.Context(), req.Amount, response.Processor, "success")
 	}
 
 	// Return success response (any 2XX status is valid)

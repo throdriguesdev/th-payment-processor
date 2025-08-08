@@ -1,10 +1,12 @@
 package metrics
 
 import (
+	"context"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -62,6 +64,66 @@ func RecordRequest(method, path, status string, duration time.Duration) {
 	
 	httpRequestsTotal.With(labels).Inc()
 	httpRequestDuration.With(labels).Observe(duration.Seconds())
+}
+
+// RecordRequestWithContext records HTTP request metrics with trace context for exemplars
+func RecordRequestWithContext(ctx context.Context, method, path, status string, duration time.Duration) {
+	labels := prometheus.Labels{
+		"method": method,
+		"path":   path,
+		"status": status,
+	}
+	
+	// Extract trace ID for exemplars
+	span := trace.SpanFromContext(ctx)
+	var exemplar prometheus.Labels
+	if span.SpanContext().IsValid() {
+		exemplar = prometheus.Labels{
+			"traceID": span.SpanContext().TraceID().String(),
+		}
+	}
+	
+	httpRequestsTotal.With(labels).Inc()
+	
+	// Record duration with exemplar if trace ID is available
+	observer := httpRequestDuration.With(labels)
+	if exemplar != nil {
+		if observerWithExemplar, ok := observer.(prometheus.ExemplarObserver); ok {
+			observerWithExemplar.ObserveWithExemplar(duration.Seconds(), exemplar)
+		} else {
+			observer.Observe(duration.Seconds())
+		}
+	} else {
+		observer.Observe(duration.Seconds())
+	}
+}
+
+// RecordPaymentAmountWithContext records payment amount metrics with trace context for exemplars
+func RecordPaymentAmountWithContext(ctx context.Context, amount float64, processor, status string) {
+	labels := prometheus.Labels{
+		"processor": processor,
+		"status":    status,
+	}
+	
+	// Extract trace ID for exemplars
+	span := trace.SpanFromContext(ctx)
+	var exemplar prometheus.Labels
+	if span.SpanContext().IsValid() {
+		exemplar = prometheus.Labels{
+			"traceID": span.SpanContext().TraceID().String(),
+		}
+	}
+	
+	observer := paymentAmounts.With(labels)
+	if exemplar != nil {
+		if observerWithExemplar, ok := observer.(prometheus.ExemplarObserver); ok {
+			observerWithExemplar.ObserveWithExemplar(amount, exemplar)
+		} else {
+			observer.Observe(amount)
+		}
+	} else {
+		observer.Observe(amount)
+	}
 }
 
 // RecordError records HTTP error metrics

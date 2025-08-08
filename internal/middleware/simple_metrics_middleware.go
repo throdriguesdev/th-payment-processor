@@ -18,11 +18,12 @@ func SimpleMetricsMiddleware() gin.HandlerFunc {
 		// Process request
 		c.Next()
 		
-		// Record metrics
+		// Record metrics with trace context for exemplars
 		duration := time.Since(start)
 		status := strconv.Itoa(c.Writer.Status())
 		
-		metrics.RecordRequest(
+		metrics.RecordRequestWithContext(
+			c.Request.Context(),
 			c.Request.Method,
 			c.FullPath(),
 			status,
