@@ -1,11 +1,13 @@
 package main
 
 import (
+	"net/http"
 	"os"
 	"strconv"
 	"payment-processors/handlers"
 	"payment-processors/storage"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
 
@@ -37,6 +39,21 @@ func main() {
 	router.POST("/payments", handler.ProcessPayment)
 	router.GET("/payments/:id", handler.GetPaymentDetails)
 	router.GET("/payments/service-health", handler.GetServiceHealth)
+	
+	// Start metrics server in a separate goroutine
+	go func() {
+		metricsMux := http.NewServeMux()
+		metricsMux.Handle("/metrics", promhttp.Handler())
+		metricsMux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("OK"))
+		})
+		
+		logrus.Info("Metrics server starting on :2112/metrics")
+		if err := http.ListenAndServe(":2112", metricsMux); err != nil {
+			logrus.Errorf("Failed to start metrics server: %v", err)
+		}
+	}()
 	
 	// Admin routes
 	admin := router.Group("/admin")

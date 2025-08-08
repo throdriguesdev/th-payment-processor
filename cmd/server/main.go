@@ -7,6 +7,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"th_payment_processor/internal/config"
 	"th_payment_processor/internal/handlers"
+	"th_payment_processor/internal/middleware"
 	"th_payment_processor/internal/services"
 	"th_payment_processor/internal/storage"
 	"th_payment_processor/internal/tracing"
@@ -23,6 +24,9 @@ func main() {
 		logrus.Fatalf("Failed to initialize tracing: %v", err)
 	}
 	defer shutdown()
+
+	// start metrics server
+	tracing.StartMetricsServer()
 
 	// configs
 	cfg := config.Load()
@@ -71,7 +75,8 @@ func main() {
 	//  Minimal middleware for maximum performance
 	router.Use(gin.Recovery())
 	// Skip gin.Logger() for performance - we have structured logging
-	router.Use(otelgin.Middleware("rinha-backend"))
+	router.Use(otelgin.Middleware("th-payment-processor"))
+	router.Use(middleware.SimpleMetricsMiddleware())
 
 	//  routes
 	router.POST("/payments", handler.ProcessPayment)

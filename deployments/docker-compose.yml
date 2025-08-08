@@ -57,6 +57,37 @@ services:
       - COLLECTOR_OTLP_ENABLED=true
     networks:
       - backend
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - backend
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - backend
   # nginx Load Balancer
   nginx:
     image: nginx:alpine
@@ -81,6 +112,9 @@ services:
     build:
       context: ..
       dockerfile: build/Dockerfile
+    ports:
+      - "8081:8080"
+      - "2113:2112"
     environment:
       - SERVER_PORT=8080
       - DEFAULT_PROCESSOR_URL=http://payment-processor-default:8080
@@ -116,6 +150,9 @@ services:
     build:
       context: ..
       dockerfile: build/Dockerfile
+    ports:
+      - "8082:8080"
+      - "2114:2112"
     environment:
       - SERVER_PORT=8080
       - DEFAULT_PROCESSOR_URL=http://payment-processor-default:8080
@@ -152,6 +189,7 @@ services:
       context: ../payment-processors
     ports:
       - "8001:8080"
+      - "2115:2112"
     environment:
       - PORT=8080
       - FEE_PERCENTAGE=1.0
@@ -163,6 +201,7 @@ services:
           memory: "100MB"
     networks:
       - payment-processor
+      - backend
 
   # Fallback Payment Processor (higher fee)
   payment-processor-fallback:
@@ -170,6 +209,7 @@ services:
       context: ../payment-processors
     ports:
       - "8002:8080"
+      - "2116:2112"
     environment:
       - PORT=8080
       - FEE_PERCENTAGE=5.0
@@ -181,10 +221,13 @@ services:
           memory: "100MB"
     networks:
       - payment-processor
+      - backend
 
 volumes:
   postgres_data:
   redis_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   backend:

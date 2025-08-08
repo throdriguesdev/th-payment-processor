@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"net/http"
+	"th_payment_processor/internal/metrics"
 	"th_payment_processor/internal/models"
 	"th_payment_processor/internal/services"
 	"time"
@@ -28,11 +29,18 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 	}
 
 	// Process payment
-	_, err := h.paymentService.ProcessPayment(&req)
+	response, err := h.paymentService.ProcessPayment(&req)
 	if err != nil {
 		logrus.Errorf("Payment processing failed: %v", err)
+		// Record failed payment
+		metrics.RecordPaymentAmount(req.Amount, "unknown", "failed")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Payment processing failed"})
 		return
+	}
+
+	// Record successful payment metrics
+	if response != nil {
+		metrics.RecordPaymentAmount(req.Amount, response.Processor, "success")
 	}
 
 	// Return success response (any 2XX status is valid)
