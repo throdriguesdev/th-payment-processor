@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"th_payment_processor/internal/models"
 	"sync"
@@ -11,7 +12,7 @@ import (
 
 // Storage interface for payment storage operations
 type Storage interface {
-	StorePayment(record *models.PaymentRecord) error
+	StorePayment(ctx context.Context, record *models.PaymentRecord) error
 	GetPaymentByCorrelationID(correlationID string) (*models.PaymentRecord, bool)
 	GetPaymentsSummary(from, to *time.Time) models.PaymentSummary
 	GetAllPayments() []*models.PaymentRecord
@@ -29,7 +30,7 @@ func NewInMemoryStorage() *InMemoryStorage {
 		byID:     make(map[uuid.UUID]*models.PaymentRecord),
 	}
 }
-func (s *InMemoryStorage) StorePayment(record *models.PaymentRecord) error {
+func (s *InMemoryStorage) StorePayment(ctx context.Context, record *models.PaymentRecord) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

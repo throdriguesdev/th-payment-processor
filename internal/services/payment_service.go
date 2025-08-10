@@ -110,7 +110,7 @@ func (s *PaymentService) ProcessPayment(req *models.PaymentRequest) (*models.Pay
 		if err := s.processWithProcessor(ctx, req, record, "default"); err == nil {
 			logrus.Debugf("Payment processed successfully with default processor: %s", req.CorrelationID)
 			span.SetAttributes(attribute.String("payment.processor.used", "default"))
-			if err := s.storage.StorePayment(record); err != nil {
+			if err := s.storage.StorePayment(ctx, record); err != nil {
 			logrus.Errorf("Failed to store payment: %v", err)
 		}
 			return record, nil
@@ -130,7 +130,7 @@ func (s *PaymentService) ProcessPayment(req *models.PaymentRequest) (*models.Pay
 		if err := s.processWithProcessor(ctx, req, record, "fallback"); err == nil {
 			logrus.Debugf("Payment processed successfully with fallback processor: %s", req.CorrelationID)
 			span.SetAttributes(attribute.String("payment.processor.used", "fallback"))
-			if err := s.storage.StorePayment(record); err != nil {
+			if err := s.storage.StorePayment(ctx, record); err != nil {
 			logrus.Errorf("Failed to store payment: %v", err)
 		}
 			return record, nil
@@ -145,7 +145,7 @@ func (s *PaymentService) ProcessPayment(req *models.PaymentRequest) (*models.Pay
 
 	// if  both  fail, mark as failed but still store
 	record.Processor = "failed"
-	s.storage.StorePayment(record)
+	s.storage.StorePayment(ctx, record)
 	logrus.Errorf("Both processors failed for payment: %s", req.CorrelationID)
 
 	span.SetStatus(codes.Error, "both payment processors are unavailable")

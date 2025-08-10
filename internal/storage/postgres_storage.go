@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -8,10 +9,14 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type PostgresStorage struct {
-	db *sql.DB
+	db     *sql.DB
+	tracer trace.Tracer
 }
 
 func NewPostgresStorage(host, port, user, password, dbname, sslmode string) (*PostgresStorage, error) {
@@ -27,7 +32,10 @@ func NewPostgresStorage(host, port, user, password, dbname, sslmode string) (*Po
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	storage := &PostgresStorage{db: db}
+	storage := &PostgresStorage{
+		db:     db,
+		tracer: otel.Tracer("postgres-storage"),
+	}
 	if err := storage.createTables(); err != nil {
 		return nil, fmt.Errorf("failed to create tables: %w", err)
 	}
@@ -64,14 +72,26 @@ func (s *PostgresStorage) createTables() error {
 	return err
 }
 
-func (s *PostgresStorage) StorePayment(record *models.PaymentRecord) error {
+func (s *PostgresStorage) StorePayment(ctx context.Context, record *models.PaymentRecord) error {
+	ctx, span := s.tracer.Start(ctx, "postgres.store_payment",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "INSERT"),
+			attribute.String("db.table", "payments"),
+			attribute.String("payment.correlation_id", record.CorrelationID),
+			attribute.Float64("payment.amount", record.Amount),
+			attribute.String("payment.processor", record.Processor),
+		),
+	)
+	defer span.End()
+
 	query := `
 		INSERT INTO payments (id, correlation_id, amount, processor, processed_at, success)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (correlation_id) DO NOTHING
 	`
 
-	_, err := s.db.Exec(query,
+	_, err := s.db.ExecContext(ctx, query,
 		record.ID,
 		record.CorrelationID,
 		record.Amount,
@@ -81,6 +101,7 @@ func (s *PostgresStorage) StorePayment(record *models.PaymentRecord) error {
 	)
 
 	if err != nil {
+		span.RecordError(err)
 		logrus.Errorf("Failed to store payment: %v", err)
 		return fmt.Errorf("failed to store payment: %w", err)
 	}

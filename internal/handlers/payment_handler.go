@@ -5,6 +5,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"net/http"
 	"th_payment_processor/internal/metrics"
+	"th_payment_processor/internal/middleware"
 	"th_payment_processor/internal/models"
 	"th_payment_processor/internal/services"
 	"time"
@@ -21,30 +22,57 @@ func NewPaymentHandler(paymentService *services.PaymentService) *PaymentHandler 
 }
 
 func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
+	logger := middleware.GetLogger(c.Request.Context())
+	correlationID := middleware.GetCorrelationID(c.Request.Context())
+	
 	var req models.PaymentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logrus.Errorf("Invalid payment request: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		logger.WithError(err).Error("Invalid payment request format")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":          "Invalid request format",
+			"correlation_id": correlationID,
+		})
 		return
 	}
+
+	logger.WithFields(logrus.Fields{
+		"payment_amount":      req.Amount,
+		"payment_correlation": req.CorrelationID,
+	}).Info("Processing payment request")
 
 	// Process payment
 	response, err := h.paymentService.ProcessPayment(&req)
 	if err != nil {
-		logrus.Errorf("Payment processing failed: %v", err)
+		logger.WithError(err).WithFields(logrus.Fields{
+			"payment_amount":      req.Amount,
+			"payment_correlation": req.CorrelationID,
+		}).Error("Payment processing failed")
+		
 		// Record failed payment with trace context
 		metrics.RecordPaymentAmountWithContext(c.Request.Context(), req.Amount, "unknown", "failed")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Payment processing failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":          "Payment processing failed",
+			"correlation_id": correlationID,
+		})
 		return
 	}
 
 	// Record successful payment metrics with trace context
 	if response != nil {
 		metrics.RecordPaymentAmountWithContext(c.Request.Context(), req.Amount, response.Processor, "success")
+		
+		logger.WithFields(logrus.Fields{
+			"payment_amount":      req.Amount,
+			"payment_correlation": req.CorrelationID,
+			"processor_used":      response.Processor,
+		}).Info("Payment processed successfully")
 	}
 
 	// Return success response (any 2XX status is valid)
-	c.JSON(http.StatusOK, gin.H{"message": "Payment processed successfully"})
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "Payment processed successfully",
+		"correlation_id": correlationID,
+	})
 }
 
 func (h *PaymentHandler) GetPaymentsSummary(c *gin.Context) {

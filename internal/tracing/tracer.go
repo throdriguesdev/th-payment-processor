@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -32,27 +33,57 @@ func InitTracer() (func(), error) {
 		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
 
-	// Initialize Jaeger for tracing
+	var exporters []trace.SpanExporter
+
+	// Initialize Jaeger for tracing (legacy support)
 	jaegerEndpoint := os.Getenv("JAEGER_ENDPOINT")
 	if jaegerEndpoint == "" {
 		jaegerEndpoint = "http://jaeger:14268/api/traces"
 	}
 
-	traceExp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(jaegerEndpoint)))
+	jaegerExp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(jaegerEndpoint)))
 	if err != nil {
-		logrus.Errorf("Failed to create Jaeger exporter: %v", err)
-		return nil, err
+		logrus.Warnf("Failed to create Jaeger exporter: %v", err)
+	} else {
+		exporters = append(exporters, jaegerExp)
+		logrus.Info("Jaeger trace exporter initialized")
 	}
 
-	tp := trace.NewTracerProvider(
-		trace.WithBatcher(traceExp),
-		trace.WithResource(res),
-	)
+	// Initialize Tempo OTLP exporter using environment variables approach
+	// Clear any existing OTEL environment variables that might conflict
+	os.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://tempo:4318/v1/traces")
+	os.Setenv("OTEL_EXPORTER_OTLP_INSECURE", "true")
+	
+	logrus.Info("Creating Tempo OTLP exporter using environment variables")
+	
+	tempoExp, err := otlptracehttp.New(ctx)
+	if err != nil {
+		logrus.Warnf("Failed to create Tempo exporter: %v", err)
+	} else {
+		exporters = append(exporters, tempoExp)
+		logrus.Info("Tempo trace exporter initialized")
+	}
+
+	if len(exporters) == 0 {
+		return nil, fmt.Errorf("no trace exporters available")
+	}
+
+	// Create trace provider with multiple exporters
+	var batchOptions []trace.TracerProviderOption
+	for _, exp := range exporters {
+		batchOptions = append(batchOptions, trace.WithBatcher(exp))
+	}
+	batchOptions = append(batchOptions, trace.WithResource(res))
+
+	tp := trace.NewTracerProvider(batchOptions...)
 
 	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.TraceContext{})
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
 
-	logrus.Info("OpenTelemetry tracing initialized successfully")
+	logrus.Info("OpenTelemetry tracing initialized with multiple exporters")
 
 	return func() {
 		if err := tp.Shutdown(context.Background()); err != nil {

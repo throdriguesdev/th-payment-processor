@@ -75,6 +75,7 @@ func main() {
 	//  Minimal middleware for maximum performance
 	router.Use(gin.Recovery())
 	// Skip gin.Logger() for performance - we have structured logging
+	router.Use(middleware.CorrelationIDMiddleware())
 	router.Use(otelgin.Middleware("th-payment-processor"))
 	router.Use(middleware.SimpleMetricsMiddleware())
 

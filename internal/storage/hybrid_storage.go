@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"time"
 	"th_payment_processor/internal/models"
 
@@ -19,9 +20,9 @@ func NewHybridStorage(postgres *PostgresStorage, redis *RedisCache) *HybridStora
 	}
 }
 
-func (h *HybridStorage) StorePayment(record *models.PaymentRecord) error {
+func (h *HybridStorage) StorePayment(ctx context.Context, record *models.PaymentRecord) error {
 	// Store in PostgreSQL for persistence
-	pgErr := h.postgres.StorePayment(record)
+	pgErr := h.postgres.StorePayment(ctx, record)
 	if pgErr != nil {
 		logrus.Errorf("Failed to store payment in PostgreSQL: %v", pgErr)
 	}

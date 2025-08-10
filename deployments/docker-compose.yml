@@ -47,7 +47,7 @@ services:
       timeout: 3s
       retries: 5
 
-  # Jaeger
+  # Jaeger  
   jaeger:
     image: jaegertracing/all-in-one:latest
     ports:
@@ -60,6 +60,46 @@ services:
       - PROMETHEUS_SERVER_URL=http://prometheus:9090
     networks:
       - backend
+
+  # Grafana Tempo
+  tempo:
+    image: grafana/tempo:latest
+    ports:
+      - "3200:3200"   # Tempo HTTP
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    volumes:
+      - ./tempo.yml:/etc/tempo.yml:ro
+      - tempo_data:/var/tempo
+    command: ["-config.file=/etc/tempo.yml"]
+    networks:
+      - backend
+
+  # Loki
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - backend
+
+  # Promtail (Log shipper)
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - ./promtail.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - backend
+    depends_on:
+      - loki
 
   # Prometheus
   prometheus:
@@ -85,12 +125,17 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     networks:
       - backend
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
   # nginx Load Balancer
   nginx:
     image: nginx:alpine
@@ -123,6 +168,7 @@ services:
       - DEFAULT_PROCESSOR_URL=http://payment-processor-default:8080
       - FALLBACK_PROCESSOR_URL=http://payment-processor-fallback:8080
       - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+      - TEMPO_ENDPOINT=http://tempo:4318
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=postgres
@@ -161,6 +207,7 @@ services:
       - DEFAULT_PROCESSOR_URL=http://payment-processor-default:8080
       - FALLBACK_PROCESSOR_URL=http://payment-processor-fallback:8080
       - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+      - TEMPO_ENDPOINT=http://tempo:4318
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=postgres
@@ -231,6 +278,8 @@ volumes:
   redis_data:
   prometheus_data:
   grafana_data:
+  tempo_data:
+  loki_data:
 
 networks:
   backend:
