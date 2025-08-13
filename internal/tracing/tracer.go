@@ -78,9 +78,12 @@ func InitTracer() (func(), error) {
 	tp := trace.NewTracerProvider(batchOptions...)
 
 	otel.SetTracerProvider(tp)
+	
+	// Set up comprehensive context propagation for distributed tracing
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
+		propagation.TraceContext{}, // W3C Trace Context
+		propagation.Baggage{},      // W3C Baggage
+		propagation.TraceContext{}, // Duplicate for fallback support
 	))
 
 	logrus.Info("OpenTelemetry tracing initialized with multiple exporters")

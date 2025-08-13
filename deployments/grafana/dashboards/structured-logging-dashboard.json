@@ -1,0 +1,270 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Payment Processor - Structured Logging & Observability",
+    "tags": ["payment-processor", "observability", "logging"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Request Volume",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate({service_name=\"th-payment-processor\"} | json | operation=\"http_request\" [5m]))",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Payment Success Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate({service_name=\"th-payment-processor\"} | json | operation=\"payment_success\" [5m])) / sum(rate({service_name=\"th-payment-processor\"} | json | operation=~\"payment_success|payment_failure\" [5m])) * 100",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 90
+                },
+                {
+                  "color": "green",
+                  "value": 95
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Payment Processing Latency",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum(rate({service_name=\"th-payment-processor\"} | json | operation=\"payment_success\" | unwrap latency_ms [5m])) by (le))",
+            "refId": "A",
+            "legendFormat": "p50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum(rate({service_name=\"th-payment-processor\"} | json | operation=\"payment_success\" | unwrap latency_ms [5m])) by (le))",
+            "refId": "B",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum(rate({service_name=\"th-payment-processor\"} | json | operation=\"payment_success\" | unwrap latency_ms [5m])) by (le))",
+            "refId": "C",
+            "legendFormat": "p99"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 8
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Error Rate by Component",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "sum by (component) (rate({service_name=\"th-payment-processor\"} | json | level=\"error\" [5m]))",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Payment Amount Distribution",
+        "type": "histogram",
+        "targets": [
+          {
+            "expr": "{service_name=\"th-payment-processor\"} | json | operation=\"payment_start\" | unwrap amount",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Recent Payment Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{service_name=\"th-payment-processor\"} | json | operation=~\"payment_.*\"",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 10,
+          "w": 24,
+          "x": 0,
+          "y": 24
+        },
+        "options": {
+          "showTime": true,
+          "showLabels": false,
+          "showCommonLabels": true,
+          "wrapLogMessage": false,
+          "prettifyLogMessage": false,
+          "enableLogDetails": true,
+          "dedupStrategy": "none",
+          "sortOrder": "Descending"
+        }
+      },
+      {
+        "id": 7,
+        "title": "Health Check Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum by (processor) (count_over_time({service_name=\"th-payment-processor\"} | json | operation=\"health_check\" | healthy=\"true\" [5m]))",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 6,
+          "w": 12,
+          "x": 0,
+          "y": 34
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Top Correlation IDs",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "topk(10, count by (correlation_id) (count_over_time({service_name=\"th-payment-processor\"} | json [1h])))",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 6,
+          "w": 12,
+          "x": 12,
+          "y": 34
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "templating": {
+      "list": [
+        {
+          "name": "correlation_id",
+          "type": "query",
+          "query": "label_values(correlation_id)",
+          "refresh": 1,
+          "includeAll": true,
+          "allValue": ".*"
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "Loki",
+          "expr": "{service_name=\"th-payment-processor\"} |= \"Application starting\"",
+          "textFormat": "Service Started",
+          "iconColor": "green"
+        }
+      ]
+    },
+    "refresh": "5s",
+    "schemaVersion": 37,
+    "version": 1,
+    "weekStart": ""
+  }
+}

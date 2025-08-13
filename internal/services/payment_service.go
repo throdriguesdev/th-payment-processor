@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"th_payment_processor/internal/config"
+	"th_payment_processor/internal/logging"
 	"th_payment_processor/internal/models"
 	"th_payment_processor/internal/storage"
 )
@@ -77,19 +78,23 @@ func NewPaymentService(cfg *config.Config, storage storage.Storage) *PaymentServ
 	return service
 }
 
-func (s *PaymentService) ProcessPayment(req *models.PaymentRequest) (*models.PaymentRecord, error) {
-	ctx := context.Background()
+func (s *PaymentService) ProcessPayment(ctx context.Context, req *models.PaymentRequest) (*models.PaymentRecord, error) {
 	tracer := otel.Tracer("payment-service")
 	ctx, span := tracer.Start(ctx, "ProcessPayment")
 	defer span.End()
 
+	// Create structured logger with context
+	logger := logging.NewStructuredLogger("payment_service").WithContext(ctx)
+	startTime := time.Now()
+
 	span.SetAttributes(
 		attribute.String("payment.correlation_id", req.CorrelationID),
 		attribute.Float64("payment.amount", req.Amount),
+		attribute.String("service.operation", "process_payment"),
 	)
 
-	// Reduced logging for performance - only log in debug mode
-	logrus.Debugf("Processing payment: correlationId=%s, amount=%.2f", req.CorrelationID, req.Amount)
+	// Log payment start with structured logging
+	logger.LogPaymentStart(req.CorrelationID, req.Amount)
 
 	// Skip duplicate check for performance - database handles uniqueness constraint
 	// This reduces latency by avoiding extra database lookups during high load
@@ -105,62 +110,86 @@ func (s *PaymentService) ProcessPayment(req *models.PaymentRequest) (*models.Pay
 
 	// try default processor first
 	if s.isProcessorHealthy("default") {
-		logrus.Debugf("Trying default processor for payment: %s", req.CorrelationID)
+		logger.WithOperation("try_default_processor").Debug("Attempting payment with default processor")
 		span.SetAttributes(attribute.String("payment.processor.attempted", "default"))
 		if err := s.processWithProcessor(ctx, req, record, "default"); err == nil {
-			logrus.Debugf("Payment processed successfully with default processor: %s", req.CorrelationID)
+			latencyMs := time.Since(startTime).Milliseconds()
+			logger.LogPaymentSuccess(req.CorrelationID, req.Amount, "default", latencyMs)
 			span.SetAttributes(attribute.String("payment.processor.used", "default"))
 			if err := s.storage.StorePayment(ctx, record); err != nil {
-			logrus.Errorf("Failed to store payment: %v", err)
-		}
+				logger.WithError(err).Error("Failed to store payment record")
+			}
 			return record, nil
 		} else {
-			logrus.Errorf("Default processor failed for payment %s: %v", req.CorrelationID, err)
+			logger.WithPaymentFields(logging.PaymentFields{
+				CorrelationID: req.CorrelationID,
+				Amount:        req.Amount,
+				Processor:     "default",
+			}).WithError(err).Error("Default processor failed")
 			span.SetAttributes(attribute.String("payment.processor.default.error", err.Error()))
 		}
 	} else {
-		logrus.Warnf("Default processor not healthy for payment: %s", req.CorrelationID)
+		logger.WithPaymentFields(logging.PaymentFields{
+			CorrelationID: req.CorrelationID,
+			Processor:     "default",
+		}).Warn("Default processor not healthy, skipping")
 		span.SetAttributes(attribute.Bool("payment.processor.default.unhealthy", true))
 	}
 
 	// try fallback processor
 	if s.isProcessorHealthy("fallback") {
-		logrus.Debugf("Trying fallback processor for payment: %s", req.CorrelationID)
+		logger.WithOperation("try_fallback_processor").Debug("Attempting payment with fallback processor")
 		span.SetAttributes(attribute.String("payment.processor.attempted", "fallback"))
 		if err := s.processWithProcessor(ctx, req, record, "fallback"); err == nil {
-			logrus.Debugf("Payment processed successfully with fallback processor: %s", req.CorrelationID)
+			latencyMs := time.Since(startTime).Milliseconds()
+			logger.LogPaymentSuccess(req.CorrelationID, req.Amount, "fallback", latencyMs)
 			span.SetAttributes(attribute.String("payment.processor.used", "fallback"))
 			if err := s.storage.StorePayment(ctx, record); err != nil {
-			logrus.Errorf("Failed to store payment: %v", err)
-		}
+				logger.WithError(err).Error("Failed to store payment record")
+			}
 			return record, nil
 		} else {
-			logrus.Errorf("Fallback processor failed for payment %s: %v", req.CorrelationID, err)
+			logger.WithPaymentFields(logging.PaymentFields{
+				CorrelationID: req.CorrelationID,
+				Amount:        req.Amount,
+				Processor:     "fallback",
+			}).WithError(err).Error("Fallback processor failed")
 			span.SetAttributes(attribute.String("payment.processor.fallback.error", err.Error()))
 		}
 	} else {
-		logrus.Warnf("Fallback processor not healthy for payment: %s", req.CorrelationID)
+		logger.WithPaymentFields(logging.PaymentFields{
+			CorrelationID: req.CorrelationID,
+			Processor:     "fallback",
+		}).Warn("Fallback processor not healthy, skipping")
 		span.SetAttributes(attribute.Bool("payment.processor.fallback.unhealthy", true))
 	}
 
-	// if  both  fail, mark as failed but still store
+	// if both fail, mark as failed but still store
 	record.Processor = "failed"
 	s.storage.StorePayment(ctx, record)
-	logrus.Errorf("Both processors failed for payment: %s", req.CorrelationID)
+	
+	latencyMs := time.Since(startTime).Milliseconds()
+	err := fmt.Errorf("both payment processors are unavailable")
+	logger.LogPaymentFailure(req.CorrelationID, req.Amount, "failed", err, latencyMs)
 
 	span.SetStatus(codes.Error, "both payment processors are unavailable")
 	span.SetAttributes(attribute.String("payment.processor.used", "failed"))
 
-	return record, fmt.Errorf("both payment processors are unavailable")
+	return record, err
 }
 
 func (s *PaymentService) processWithProcessor(ctx context.Context, req *models.PaymentRequest, record *models.PaymentRecord, processor string) error {
 	_, span := otel.Tracer("payment-service").Start(ctx, "processWithProcessor")
 	defer span.End()
 
+	logger := logging.NewStructuredLogger("payment_processor").WithContext(ctx)
+	startTime := time.Now()
+
 	span.SetAttributes(
 		attribute.String("payment.processor.name", processor),
 		attribute.String("payment.correlation_id", req.CorrelationID),
+		attribute.Float64("payment.amount", req.Amount),
+		attribute.String("service.operation", "external_processor_call"),
 	)
 	var url string
 	switch processor {
@@ -186,40 +215,80 @@ func (s *PaymentService) processWithProcessor(ctx context.Context, req *models.P
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// make request
+	// make request with enhanced tracing
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		span.RecordError(err)
+		logger.WithPaymentFields(logging.PaymentFields{
+			CorrelationID: req.CorrelationID,
+			Processor:     processor,
+		}).WithError(err).Error("Failed to create HTTP request")
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
+	// Add correlation ID to request headers for upstream tracing
 	httpReq.Header.Set("Content-Type", "application/json")
-	span.SetAttributes(attribute.String("http.url", url))
+	httpReq.Header.Set("X-Correlation-ID", req.CorrelationID)
+	
+	span.SetAttributes(
+		attribute.String("http.url", url),
+		attribute.String("http.method", "POST"),
+		attribute.String("http.request.correlation_id", req.CorrelationID),
+	)
+
+	logger.WithHTTPFields(logging.HTTPFields{
+		Method: "POST",
+		URL:    url,
+	}).WithField("operation", "external_processor_request").Debug("Making request to payment processor")
 
 	resp, err := s.client.Do(httpReq)
 	if err != nil {
 		span.RecordError(err)
+		latencyMs := time.Since(startTime).Milliseconds()
+		logger.WithPaymentFields(logging.PaymentFields{
+			CorrelationID: req.CorrelationID,
+			Processor:     processor,
+		}).WithError(err).WithField("latency_ms", latencyMs).Error("HTTP request to processor failed")
 		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	span.SetAttributes(attribute.Int("http.status_code", resp.StatusCode))
+	latencyMs := time.Since(startTime).Milliseconds()
+	span.SetAttributes(
+		attribute.Int("http.status_code", resp.StatusCode),
+		attribute.Int64("http.response.duration_ms", latencyMs),
+	)
 
 	if resp.StatusCode != http.StatusOK {
 		err := fmt.Errorf("processor returned status %d", resp.StatusCode)
 		span.RecordError(err)
+		logger.WithPaymentFields(logging.PaymentFields{
+			CorrelationID: req.CorrelationID,
+			Processor:     processor,
+		}).WithField("http_status", resp.StatusCode).WithField("latency_ms", latencyMs).Error("Processor returned non-200 status")
 		return err
 	}
 
 	// parse response
 	var processorResp models.PaymentProcessorResponse
 	if err := json.NewDecoder(resp.Body).Decode(&processorResp); err != nil {
+		logger.WithPaymentFields(logging.PaymentFields{
+			CorrelationID: req.CorrelationID,
+			Processor:     processor,
+		}).WithError(err).Error("Failed to decode processor response")
 		return fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	// Update record
 	record.Processor = processor
 	record.Success = true
+
+	logger.WithPaymentFields(logging.PaymentFields{
+		CorrelationID: req.CorrelationID,
+		Processor:     processor,
+		Amount:        req.Amount,
+		Status:        "success",
+	}).WithField("latency_ms", latencyMs).WithField("operation", "processor_success").Debug("Payment processed successfully by external processor")
 
 	return nil
 }
@@ -254,6 +323,10 @@ func (s *PaymentService) StartHealthMonitoring(ctx context.Context) {
 }
 
 func (s *PaymentService) checkProcessorHealth(processor string) {
+	ctx := context.Background()
+	logger := logging.NewStructuredLogger("health_monitor").WithContext(ctx)
+	startTime := time.Now()
+
 	// Rate limiting: only check every 5 seconds per processor
 	s.healthCheckMu.Lock()
 	var lastCheck time.Time
@@ -288,35 +361,53 @@ func (s *PaymentService) checkProcessorHealth(processor string) {
 		return
 	}
 
-	req, err := http.NewRequest("GET", url, nil)
+	logger.WithOperation("health_check_start").Debug("Starting health check for processor")
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		logrus.Errorf("Failed to create health check request for %s: %v", processor, err)
+		logger.WithPaymentFields(logging.PaymentFields{
+			Processor: processor,
+		}).WithError(err).Error("Failed to create health check request")
 		return
 	}
 
 	resp, err := s.client.Do(req)
 	if err != nil {
+		logger.WithPaymentFields(logging.PaymentFields{
+			Processor: processor,
+		}).WithError(err).Error("Health check request failed")
 		s.updateProcessorHealth(processor, false, 0, true)
 		return
 	}
 	defer resp.Body.Close()
 
+	responseTime := time.Since(startTime).Milliseconds()
+
 	if resp.StatusCode == http.StatusTooManyRequests {
 		// Rate limited, don't update health status
+		logger.WithPaymentFields(logging.PaymentFields{
+			Processor: processor,
+		}).Warn("Health check rate limited, skipping status update")
 		return
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		logger.WithPaymentFields(logging.PaymentFields{
+			Processor: processor,
+		}).WithField("http_status", resp.StatusCode).Warn("Health check returned non-200 status")
 		s.updateProcessorHealth(processor, false, 0, true)
 		return
 	}
 
 	var healthResp models.HealthCheckResponse
 	if err := json.NewDecoder(resp.Body).Decode(&healthResp); err != nil {
-		logrus.Errorf("Failed to decode health response for %s: %v", processor, err)
+		logger.WithPaymentFields(logging.PaymentFields{
+			Processor: processor,
+		}).WithError(err).Error("Failed to decode health check response")
 		return
 	}
 
+	logger.LogHealthCheck(processor, true, responseTime)
 	s.updateProcessorHealth(processor, true, healthResp.MinResponseTime, healthResp.Failing)
 }
 

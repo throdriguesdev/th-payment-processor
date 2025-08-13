@@ -1,14 +1,16 @@
 package handlers
 
 import (
+	"net/http"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"net/http"
+	"th_payment_processor/internal/logging"
 	"th_payment_processor/internal/metrics"
 	"th_payment_processor/internal/middleware"
 	"th_payment_processor/internal/models"
 	"th_payment_processor/internal/services"
-	"time"
 )
 
 type PaymentHandler struct {
@@ -22,12 +24,13 @@ func NewPaymentHandler(paymentService *services.PaymentService) *PaymentHandler 
 }
 
 func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
-	logger := middleware.GetLogger(c.Request.Context())
-	correlationID := middleware.GetCorrelationID(c.Request.Context())
+	ctx := c.Request.Context()
+	logger := middleware.GetStructuredLogger(ctx)
+	correlationID := middleware.GetCorrelationID(ctx)
 	
 	var req models.PaymentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.WithError(err).Error("Invalid payment request format")
+		logger.WithError(err).WithField("operation", "request_binding").Error("Invalid payment request format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":          "Invalid request format",
 			"correlation_id": correlationID,
@@ -35,21 +38,26 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 		return
 	}
 
-	logger.WithFields(logrus.Fields{
-		"payment_amount":      req.Amount,
-		"payment_correlation": req.CorrelationID,
-	}).Info("Processing payment request")
+	// Set correlation ID in request if not present
+	if req.CorrelationID == "" {
+		req.CorrelationID = correlationID
+	}
 
-	// Process payment
-	response, err := h.paymentService.ProcessPayment(&req)
+	logger.WithPaymentFields(logging.PaymentFields{
+		Amount:        req.Amount,
+		CorrelationID: req.CorrelationID,
+	}).WithField("operation", "payment_request").Info("Processing payment request")
+
+	// Process payment with context
+	response, err := h.paymentService.ProcessPayment(ctx, &req)
 	if err != nil {
-		logger.WithError(err).WithFields(logrus.Fields{
-			"payment_amount":      req.Amount,
-			"payment_correlation": req.CorrelationID,
-		}).Error("Payment processing failed")
+		logger.WithPaymentFields(logging.PaymentFields{
+			Amount:        req.Amount,
+			CorrelationID: req.CorrelationID,
+		}).WithError(err).WithField("operation", "payment_processing").Error("Payment processing failed")
 		
 		// Record failed payment with trace context
-		metrics.RecordPaymentAmountWithContext(c.Request.Context(), req.Amount, "unknown", "failed")
+		metrics.RecordPaymentAmountWithContext(ctx, req.Amount, "unknown", "failed")
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":          "Payment processing failed",
 			"correlation_id": correlationID,
@@ -59,13 +67,14 @@ func (h *PaymentHandler) ProcessPayment(c *gin.Context) {
 
 	// Record successful payment metrics with trace context
 	if response != nil {
-		metrics.RecordPaymentAmountWithContext(c.Request.Context(), req.Amount, response.Processor, "success")
+		metrics.RecordPaymentAmountWithContext(ctx, req.Amount, response.Processor, "success")
 		
-		logger.WithFields(logrus.Fields{
-			"payment_amount":      req.Amount,
-			"payment_correlation": req.CorrelationID,
-			"processor_used":      response.Processor,
-		}).Info("Payment processed successfully")
+		logger.WithPaymentFields(logging.PaymentFields{
+			Amount:        req.Amount,
+			CorrelationID: req.CorrelationID,
+			Processor:     response.Processor,
+			Status:        "success",
+		}).WithField("operation", "payment_success").Info("Payment processed successfully")
 	}
 
 	// Return success response (any 2XX status is valid)
