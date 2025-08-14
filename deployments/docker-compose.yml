@@ -47,6 +47,23 @@ services:
       timeout: 3s
       retries: 5
 
+  # OpenTelemetry Collector (for span metrics)
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    ports:
+      - "4319:4317"   # OTLP gRPC (avoid conflict with Tempo)
+      - "4320:4318"   # OTLP HTTP (avoid conflict with Tempo)
+      - "8889:8889"   # Prometheus metrics
+    volumes:
+      - ./otel-collector.yml:/etc/otel-collector.yml:ro
+    command: ["--config=/etc/otel-collector.yml"]
+    networks:
+      - backend
+    depends_on:
+      - prometheus
+      - tempo
+      - jaeger
+
   # Jaeger  
   jaeger:
     image: jaegertracing/all-in-one:latest
@@ -129,7 +146,7 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
     networks:
       - backend
     depends_on:
@@ -169,6 +186,7 @@ services:
       - FALLBACK_PROCESSOR_URL=http://payment-processor-fallback:8080
       - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
       - TEMPO_ENDPOINT=http://tempo:4318
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=postgres
@@ -208,6 +226,7 @@ services:
       - FALLBACK_PROCESSOR_URL=http://payment-processor-fallback:8080
       - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
       - TEMPO_ENDPOINT=http://tempo:4318
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=postgres

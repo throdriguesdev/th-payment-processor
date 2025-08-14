@@ -49,19 +49,24 @@ func InitTracer() (func(), error) {
 		logrus.Info("Jaeger trace exporter initialized")
 	}
 
-	// Initialize Tempo OTLP exporter using environment variables approach
+	// Initialize OTLP exporter to OpenTelemetry Collector
+	otlpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if otlpEndpoint == "" {
+		otlpEndpoint = "http://otel-collector:4318"
+	}
+	
 	// Clear any existing OTEL environment variables that might conflict
-	os.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://tempo:4318/v1/traces")
+	os.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", otlpEndpoint+"/v1/traces")
 	os.Setenv("OTEL_EXPORTER_OTLP_INSECURE", "true")
 	
-	logrus.Info("Creating Tempo OTLP exporter using environment variables")
+	logrus.Infof("Creating OTLP exporter to collector: %s", otlpEndpoint)
 	
-	tempoExp, err := otlptracehttp.New(ctx)
+	otlpExp, err := otlptracehttp.New(ctx)
 	if err != nil {
-		logrus.Warnf("Failed to create Tempo exporter: %v", err)
+		logrus.Warnf("Failed to create OTLP exporter: %v", err)
 	} else {
-		exporters = append(exporters, tempoExp)
-		logrus.Info("Tempo trace exporter initialized")
+		exporters = append(exporters, otlpExp)
+		logrus.Info("OTLP trace exporter initialized")
 	}
 
 	if len(exporters) == 0 {

@@ -1,0 +1,54 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+    send_batch_max_size: 2048
+
+  # Memory limiter
+  memory_limiter:
+    limit_mib: 400
+    check_interval: 1s
+
+exporters:
+  # Export to Tempo
+  otlp/tempo:
+    endpoint: http://tempo:4317
+    tls:
+      insecure: true
+
+  # Export to Jaeger via HTTP 
+  otlp/jaeger:
+    endpoint: http://jaeger:4318
+    tls:
+      insecure: true
+
+  # Export metrics to Prometheus
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    const_labels:
+      service_name: "otel-collector"
+
+  # Debug logging
+  debug:
+    verbosity: basic
+
+service:
+  extensions: []
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/tempo, debug]
+    
+
+  telemetry:
+    logs:
+      level: "info"

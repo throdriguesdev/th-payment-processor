@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/semconv/v1.21.0"
 	"th_payment_processor/internal/config"
 	"th_payment_processor/internal/logging"
 	"th_payment_processor/internal/models"
@@ -91,6 +92,10 @@ func (s *PaymentService) ProcessPayment(ctx context.Context, req *models.Payment
 		attribute.String("payment.correlation_id", req.CorrelationID),
 		attribute.Float64("payment.amount", req.Amount),
 		attribute.String("service.operation", "process_payment"),
+		semconv.ServiceNameKey.String("th-payment-processor"),
+		semconv.ServiceVersionKey.String("1.0.0"),
+		semconv.HTTPMethodKey.String("POST"),
+		attribute.String("business.payment.type", "standard"),
 	)
 
 	// Log payment start with structured logging
