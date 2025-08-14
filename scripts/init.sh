@@ -144,4 +144,16 @@ echo -e "\n${BLUE}📊 Monitor Services:${NC}"
 echo "• Logs: cd deployments && docker compose logs -f"
 echo "• Payments summary: curl http://localhost:9999/payments-summary"
 
+echo -e "\n${BLUE}🔍 Observability Stack:${NC}"
+echo "• Grafana (Dashboards): http://localhost:3000 (admin/admin123)"
+echo "• Prometheus (Metrics): http://localhost:9090"
+echo "• Tempo (Traces): http://localhost:3200"
+echo "• Loki (Logs): http://localhost:3100"
+
+echo -e "\n${BLUE}🎯 Key Features:${NC}"
+echo "• Service Graph View: Grafana → Explore → Tempo → Service Graph"
+echo "• Distributed Tracing: Full trace correlation across services"
+echo "• Structured Logging: JSON logs with trace IDs"
+echo "• Real-time Metrics: Request rates, latencies, error rates"
+
 echo -e "\n${YELLOW}💡 Tip: Use ./cleanup.sh to stop all services when done${NC}"

@@ -9,6 +9,7 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
+  # Docker container logs - simplified configuration
   - job_name: containers
     static_configs:
       - targets:
@@ -18,52 +19,61 @@ scrape_configs:
           __path__: /var/lib/docker/containers/*/*log
 
     pipeline_stages:
+      # Parse Docker log format
       - json:
           expressions:
             output: log
             stream: stream
-            attrs:
+            attrs: attrs
+            time: time
+      
+      # Extract container info from attributes
       - json:
           expressions:
-            tag:
+            tag: tag
           source: attrs
+      
+      # Extract container name from tag
       - regex:
           expression: (?P<container_name>(?:[^|]*))\|
           source: tag
+      
+      # Set timestamp
       - timestamp:
           format: RFC3339Nano
           source: time
+      
+      # Try to parse application JSON logs
+      - json:
+          expressions:
+            level: level
+            message: message
+            msg: msg
+            service_name: service_name
+            correlation_id: correlation_id
+            trace_id: trace_id
+            span_id: span_id
+            component: component
+            operation: operation
+            http_method: http_method
+            http_status: http_status
+            payment_id: payment_id
+            processor: processor
+            amount: amount
+            status: status
+            latency_ms: latency_ms
+            error: error
+          source: output
+      
+      # Set labels for filtering
       - labels:
           stream:
           container_name:
-      - output:
-          source: output
-
-  # Application logs from payment services
-  - job_name: payment-processor
-    static_configs:
-      - targets:
-          - localhost
-        labels:
-          job: payment-processor
-          service: payment-processor
-
-    pipeline_stages:
-      - json:
-          expressions:
-            level:
-            msg:
-            correlation_id:
-            trace_id:
-            span_id:
-            service_name:
-            time:
-      - timestamp:
-          format: RFC3339Nano
-          source: time
-      - labels:
           level:
           service_name:
+          component:
           correlation_id:
+      
+      # Output the log message
       - output:
-          source: msg
+          source: output

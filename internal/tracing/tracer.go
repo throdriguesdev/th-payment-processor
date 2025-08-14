@@ -9,7 +9,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -22,31 +21,17 @@ const ServiceName = "th-payment-processor"
 func InitTracer() (func(), error) {
 	ctx := context.Background()
 
-	// Create resource
+	// Create resource with proper service identification for service graphs
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
 			semconv.ServiceNameKey.String(ServiceName),
 			semconv.ServiceVersionKey.String("1.0.0"),
+			semconv.ServiceNamespaceKey.String("th-payment-system"),
+			semconv.DeploymentEnvironmentKey.String("development"),
 		),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource: %w", err)
-	}
-
-	var exporters []trace.SpanExporter
-
-	// Initialize Jaeger for tracing (legacy support)
-	jaegerEndpoint := os.Getenv("JAEGER_ENDPOINT")
-	if jaegerEndpoint == "" {
-		jaegerEndpoint = "http://jaeger:14268/api/traces"
-	}
-
-	jaegerExp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(jaegerEndpoint)))
-	if err != nil {
-		logrus.Warnf("Failed to create Jaeger exporter: %v", err)
-	} else {
-		exporters = append(exporters, jaegerExp)
-		logrus.Info("Jaeger trace exporter initialized")
 	}
 
 	// Initialize OTLP exporter to OpenTelemetry Collector
@@ -55,7 +40,7 @@ func InitTracer() (func(), error) {
 		otlpEndpoint = "http://otel-collector:4318"
 	}
 	
-	// Clear any existing OTEL environment variables that might conflict
+	// Set OTEL environment variables for proper configuration
 	os.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", otlpEndpoint+"/v1/traces")
 	os.Setenv("OTEL_EXPORTER_OTLP_INSECURE", "true")
 	
@@ -63,24 +48,16 @@ func InitTracer() (func(), error) {
 	
 	otlpExp, err := otlptracehttp.New(ctx)
 	if err != nil {
-		logrus.Warnf("Failed to create OTLP exporter: %v", err)
-	} else {
-		exporters = append(exporters, otlpExp)
-		logrus.Info("OTLP trace exporter initialized")
+		return nil, fmt.Errorf("failed to create OTLP exporter: %w", err)
 	}
+	logrus.Info("OTLP trace exporter initialized")
 
-	if len(exporters) == 0 {
-		return nil, fmt.Errorf("no trace exporters available")
-	}
-
-	// Create trace provider with multiple exporters
-	var batchOptions []trace.TracerProviderOption
-	for _, exp := range exporters {
-		batchOptions = append(batchOptions, trace.WithBatcher(exp))
-	}
-	batchOptions = append(batchOptions, trace.WithResource(res))
-
-	tp := trace.NewTracerProvider(batchOptions...)
+	// Create trace provider with proper sampling for production
+	tp := trace.NewTracerProvider(
+		trace.WithBatcher(otlpExp),
+		trace.WithResource(res),
+		trace.WithSampler(trace.AlwaysSample()), // Use ParentBased(TraceIDRatioBased(0.1)) for production
+	)
 
 	otel.SetTracerProvider(tp)
 	
@@ -88,10 +65,9 @@ func InitTracer() (func(), error) {
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{}, // W3C Trace Context
 		propagation.Baggage{},      // W3C Baggage
-		propagation.TraceContext{}, // Duplicate for fallback support
 	))
 
-	logrus.Info("OpenTelemetry tracing initialized with multiple exporters")
+	logrus.Info("OpenTelemetry tracing initialized successfully")
 
 	return func() {
 		if err := tp.Shutdown(context.Background()); err != nil {

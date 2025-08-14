@@ -22,15 +22,28 @@ datasources:
         datasourceUid: prometheus
       nodeGraph:
         enabled: true
+      search:
+        hide: false
+      lokiSearch:
+        datasourceUid: loki
       tracesToMetrics:
         datasourceUid: prometheus
         tags: [
-          { key: 'service.name', value: 'service' },
-          { key: 'job' }
+          { key: 'service_name', value: 'service_name' },
+          { key: 'http_method', value: 'http_method' },
+          { key: 'http_status_code', value: 'http_status_code' }
         ]
         queries:
-          - name: 'Sample query'
-            query: 'sum(rate(traces_spanmetrics_latency_bucket{$$__tags}[5m]))'
+          - name: 'Request Rate'
+            query: 'sum(rate(traces_service_graph_request_total{$$__tags}[5m]))'
+          - name: 'Request Duration P99'
+            query: 'histogram_quantile(0.99, sum(rate(traces_service_graph_request_duration_seconds_bucket{$$__tags}[5m])) by (le))'
+          - name: 'Request Duration P95'  
+            query: 'histogram_quantile(0.95, sum(rate(traces_service_graph_request_duration_seconds_bucket{$$__tags}[5m])) by (le))'
+          - name: 'Error Rate'
+            query: 'sum(rate(traces_service_graph_request_failed_total{$$__tags}[5m])) / sum(rate(traces_service_graph_request_total{$$__tags}[5m]))'
+          - name: 'Span Metrics Rate'
+            query: 'sum(rate(traces_spanmetrics_latency_count{$$__tags}[5m]))'
 
   # Loki for logs
   - name: Loki
@@ -40,9 +53,3 @@ datasources:
     url: http://loki:3100
     editable: true
 
-  # Jaeger for tracing (legacy)
-  - name: Jaeger
-    type: jaeger
-    access: proxy
-    url: http://jaeger:16686
-    editable: true

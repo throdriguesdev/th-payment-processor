@@ -8,16 +8,9 @@ services:
       - POSTGRES_DB=payments
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password123
-      - POSTGRES_SHARED_BUFFERS=16MB
-      - POSTGRES_EFFECTIVE_CACHE_SIZE=48MB
-      - POSTGRES_MAX_CONNECTIONS=100
+      - POSTGRES_MAX_CONNECTIONS=200
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    deploy:
-      resources:
-        limits:
-          cpus: "0.35"
-          memory: "85MB"
     networks:
       - backend
     healthcheck:
@@ -31,14 +24,9 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
-    command: redis-server --appendonly yes --maxmemory 55mb --maxmemory-policy allkeys-lru --tcp-keepalive 60 --timeout 30
+    command: redis-server --appendonly yes --tcp-keepalive 60 --timeout 30
     volumes:
       - redis_data:/data
-    deploy:
-      resources:
-        limits:
-          cpus: "0.25"
-          memory: "65MB"
     networks:
       - backend
     healthcheck:
@@ -62,21 +50,6 @@ services:
     depends_on:
       - prometheus
       - tempo
-      - jaeger
-
-  # Jaeger  
-  jaeger:
-    image: jaegertracing/all-in-one:latest
-    ports:
-      - "16686:16686"
-      - "14268:14268"
-      - "14269:14269"  # Admin port for metrics
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
-      - METRICS_STORAGE_TYPE=prometheus
-      - PROMETHEUS_SERVER_URL=http://prometheus:9090
-    networks:
-      - backend
 
   # Grafana Tempo
   tempo:
@@ -163,11 +136,6 @@ services:
     depends_on:
       - app1
       - app2
-    deploy:
-      resources:
-        limits:
-          cpus: "0.1"
-          memory: "25MB"
     networks:
       - backend
       - payment-processor
@@ -184,7 +152,6 @@ services:
       - SERVER_PORT=8080
       - DEFAULT_PROCESSOR_URL=http://payment-processor-default:8080
       - FALLBACK_PROCESSOR_URL=http://payment-processor-fallback:8080
-      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
       - TEMPO_ENDPOINT=http://tempo:4318
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
       - POSTGRES_HOST=postgres
@@ -196,18 +163,18 @@ services:
       - REDIS_ADDR=redis:6379
       - REDIS_PASSWORD=
       - REDIS_DB=0
+      - LOG_LEVEL=info
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "app1|{{.ImageName}}|{{.Name}}"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      jaeger:
-        condition: service_started
-    deploy:
-      resources:
-        limits:
-          cpus: "0.4"
-          memory: "85MB"
     networks:
       - backend
       - payment-processor
@@ -224,7 +191,6 @@ services:
       - SERVER_PORT=8080
       - DEFAULT_PROCESSOR_URL=http://payment-processor-default:8080
       - FALLBACK_PROCESSOR_URL=http://payment-processor-fallback:8080
-      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
       - TEMPO_ENDPOINT=http://tempo:4318
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
       - POSTGRES_HOST=postgres
@@ -236,18 +202,18 @@ services:
       - REDIS_ADDR=redis:6379
       - REDIS_PASSWORD=
       - REDIS_DB=0
+      - LOG_LEVEL=info
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "app2|{{.ImageName}}|{{.Name}}"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      jaeger:
-        condition: service_started
-    deploy:
-      resources:
-        limits:
-          cpus: "0.4"
-          memory: "85MB"
     networks:
       - backend
       - payment-processor
@@ -263,11 +229,14 @@ services:
       - PORT=8080
       - FEE_PERCENTAGE=1.0
       - MIN_RESPONSE_TIME=50
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: "100MB"
+      - LOG_LEVEL=info
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "payment-processor-default|{{.ImageName}}|{{.Name}}"
     networks:
       - payment-processor
       - backend
@@ -283,11 +252,14 @@ services:
       - PORT=8080
       - FEE_PERCENTAGE=5.0
       - MIN_RESPONSE_TIME=100
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: "100MB"
+      - LOG_LEVEL=info
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "payment-processor-fallback|{{.ImageName}}|{{.Name}}"
     networks:
       - payment-processor
       - backend

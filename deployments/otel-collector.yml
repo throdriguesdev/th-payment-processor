@@ -14,41 +14,48 @@ processors:
 
   # Memory limiter
   memory_limiter:
-    limit_mib: 400
+    limit_mib: 512
     check_interval: 1s
 
+  # Resource processor to ensure service name attributes
+  resource:
+    attributes:
+      - key: service.namespace
+        value: "th-payment-system"
+        action: upsert
+
+  # Attributes processor to enhance spans
+  attributes:
+    actions:
+      - key: service.name
+        action: upsert
+        from_attribute: service.name
+      - key: http.method
+        action: upsert
+        from_attribute: http.method
+      - key: http.status_code
+        action: upsert
+        from_attribute: http.status_code
+
 exporters:
-  # Export to Tempo
+  # Export to Tempo (will generate service graph metrics)
   otlp/tempo:
     endpoint: http://tempo:4317
     tls:
       insecure: true
 
-  # Export to Jaeger via HTTP 
-  otlp/jaeger:
-    endpoint: http://jaeger:4318
-    tls:
-      insecure: true
-
-  # Export metrics to Prometheus
-  prometheus:
-    endpoint: "0.0.0.0:8889"
-    const_labels:
-      service_name: "otel-collector"
-
   # Debug logging
   debug:
-    verbosity: basic
+    verbosity: detailed
 
 service:
   extensions: []
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, resource, attributes, batch]
       exporters: [otlp/tempo, debug]
-    
 
   telemetry:
     logs:
-      level: "info"
+      level: "debug"

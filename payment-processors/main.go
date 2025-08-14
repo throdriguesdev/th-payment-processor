@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"strconv"
@@ -9,6 +10,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 )
 
 func main() {
@@ -20,6 +28,19 @@ func main() {
 	feePercentage := getEnvAsFloat("FEE_PERCENTAGE", 1.0) // 1% default fee
 	minResponseTime := getEnvAsInt("MIN_RESPONSE_TIME", 50) // 50ms default
 	port := getEnv("PORT", "8080")
+	
+	// Initialize tracing with unique service name based on fee percentage
+	serviceName := "payment-processor-default"
+	if feePercentage > 2.0 {
+		serviceName = "payment-processor-fallback" 
+	}
+	
+	shutdown, err := initTracer(serviceName)
+	if err != nil {
+		logrus.Warnf("Failed to initialize tracing: %v", err)
+	} else {
+		defer shutdown()
+	}
 	
 	// Initialize storage
 	storage := storage.NewInMemoryStorage(feePercentage, minResponseTime)
@@ -34,6 +55,7 @@ func main() {
 	// Add middleware
 	router.Use(gin.Recovery())
 	router.Use(gin.Logger())
+	router.Use(otelgin.Middleware(serviceName))
 	
 	// Setup routes
 	router.POST("/payments", handler.ProcessPayment)
@@ -94,4 +116,53 @@ func getEnvAsInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+func initTracer(serviceName string) (func(), error) {
+	ctx := context.Background()
+
+	// Create resource with proper service identification
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String(serviceName),
+			semconv.ServiceVersionKey.String("1.0.0"),
+			semconv.ServiceNamespaceKey.String("th-payment-system"),
+			semconv.DeploymentEnvironmentKey.String("development"),
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Initialize OTLP exporter 
+	otlpEndpoint := getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4318")
+	
+	os.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", otlpEndpoint+"/v1/traces")
+	os.Setenv("OTEL_EXPORTER_OTLP_INSECURE", "true")
+	
+	otlpExp, err := otlptracehttp.New(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	tp := trace.NewTracerProvider(
+		trace.WithBatcher(otlpExp),
+		trace.WithResource(res),
+		trace.WithSampler(trace.AlwaysSample()),
+	)
+
+	otel.SetTracerProvider(tp)
+	
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
+
+	logrus.Infof("OpenTelemetry tracing initialized for %s", serviceName)
+
+	return func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			logrus.Errorf("Error shutting down tracer provider: %v", err)
+		}
+	}, nil
 }

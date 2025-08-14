@@ -229,6 +229,13 @@ func (sl *StructuredLogger) getBaseEntry() *logrus.Entry {
 				entry = entry.WithField(CorrelationIDKey, corrID)
 			}
 		}
+		
+		// Add request ID from context if available
+		if requestID := sl.ctx.Value("request_id"); requestID != nil {
+			if reqID, ok := requestID.(string); ok && reqID != "" {
+				entry = entry.WithField("request_id", reqID)
+			}
+		}
 	}
 	
 	return entry
