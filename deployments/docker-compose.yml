@@ -65,6 +65,22 @@ services:
     networks:
       - backend
 
+  # Pyroscope - Continuous Profiling
+  pyroscope:
+    image: pyroscope/pyroscope:latest
+    ports:
+      - "4040:4040"   # Pyroscope UI and API
+    volumes:
+      - pyroscope_data:/var/lib/pyroscope
+    environment:
+      - PYROSCOPE_LOG_LEVEL=info
+      - PYROSCOPE_STORAGE_PATH=/var/lib/pyroscope
+      - PYROSCOPE_API_BIND_ADDR=0.0.0.0:4040
+    command: 
+      - "server"
+    networks:
+      - backend
+
   # Loki
   loki:
     image: grafana/loki:latest
@@ -164,6 +180,8 @@ services:
       - REDIS_PASSWORD=
       - REDIS_DB=0
       - LOG_LEVEL=info
+      - PYROSCOPE_SERVER_ADDRESS=http://pyroscope:4040
+      - PYROSCOPE_APPLICATION_NAME=th-payment-processor-app1
     logging:
       driver: "json-file"
       options:
@@ -203,6 +221,8 @@ services:
       - REDIS_PASSWORD=
       - REDIS_DB=0
       - LOG_LEVEL=info
+      - PYROSCOPE_SERVER_ADDRESS=http://pyroscope:4040
+      - PYROSCOPE_APPLICATION_NAME=th-payment-processor-app2
     logging:
       driver: "json-file"
       options:
@@ -231,6 +251,8 @@ services:
       - MIN_RESPONSE_TIME=50
       - LOG_LEVEL=info
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      - PYROSCOPE_SERVER_ADDRESS=http://pyroscope:4040
+      - PYROSCOPE_APPLICATION_NAME=payment-processor-default
     logging:
       driver: "json-file"
       options:
@@ -254,6 +276,8 @@ services:
       - MIN_RESPONSE_TIME=100
       - LOG_LEVEL=info
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      - PYROSCOPE_SERVER_ADDRESS=http://pyroscope:4040
+      - PYROSCOPE_APPLICATION_NAME=payment-processor-fallback
     logging:
       driver: "json-file"
       options:
@@ -271,6 +295,7 @@ volumes:
   grafana_data:
   tempo_data:
   loki_data:
+  pyroscope_data:
 
 networks:
   backend:

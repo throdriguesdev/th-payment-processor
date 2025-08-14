@@ -53,3 +53,13 @@ datasources:
     url: http://loki:3100
     editable: true
 
+  # Pyroscope for continuous profiling
+  - name: Pyroscope
+    type: pyroscope
+    access: proxy
+    uid: pyroscope
+    url: http://pyroscope:4040
+    editable: true
+    jsonData:
+      minStep: '15s'
+

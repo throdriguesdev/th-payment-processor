@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
 	"payment-processors/handlers"
 	"payment-processors/storage"
 	"github.com/gin-gonic/gin"
+	"github.com/grafana/pyroscope-go"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
@@ -28,6 +30,36 @@ func main() {
 	feePercentage := getEnvAsFloat("FEE_PERCENTAGE", 1.0) // 1% default fee
 	minResponseTime := getEnvAsInt("MIN_RESPONSE_TIME", 50) // 50ms default
 	port := getEnv("PORT", "8080")
+	
+	// Initialize Pyroscope profiling
+	pyroscopeServer := getEnv("PYROSCOPE_SERVER_ADDRESS", "")
+	applicationName := getEnv("PYROSCOPE_APPLICATION_NAME", "payment-processor")
+	
+	if pyroscopeServer != "" {
+		_, err := pyroscope.Start(pyroscope.Config{
+			ApplicationName: applicationName,
+			ServerAddress:   pyroscopeServer,
+			Tags: map[string]string{
+				"version":        "1.0.0",
+				"environment":    "development",
+				"fee_percentage": fmt.Sprintf("%.1f", feePercentage),
+			},
+			ProfileTypes: []pyroscope.ProfileType{
+				pyroscope.ProfileCPU,
+				pyroscope.ProfileInuseObjects,
+				pyroscope.ProfileAllocObjects,
+				pyroscope.ProfileInuseSpace,
+				pyroscope.ProfileAllocSpace,
+				pyroscope.ProfileGoroutines,
+			},
+		})
+		
+		if err != nil {
+			logrus.Warnf("Failed to start Pyroscope profiling: %v", err)
+		} else {
+			logrus.Infof("Pyroscope profiling started for %s", applicationName)
+		}
+	}
 	
 	// Initialize tracing with unique service name based on fee percentage
 	serviceName := "payment-processor-default"

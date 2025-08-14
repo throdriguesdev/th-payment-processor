@@ -19,6 +19,7 @@ import (
 	"th_payment_processor/internal/config"
 	"th_payment_processor/internal/logging"
 	"th_payment_processor/internal/models"
+	"th_payment_processor/internal/profiling"
 	"th_payment_processor/internal/storage"
 )
 
@@ -26,6 +27,7 @@ type PaymentService struct {
 	config  *config.Config
 	storage storage.Storage
 	client  *http.Client
+	profiler *profiling.Profiler
 
 	// Health monitoring
 	healthMu       sync.RWMutex
@@ -41,10 +43,11 @@ type PaymentService struct {
 	requestPool sync.Pool
 }
 
-func NewPaymentService(cfg *config.Config, storage storage.Storage) *PaymentService {
+func NewPaymentService(cfg *config.Config, storage storage.Storage, profiler *profiling.Profiler) *PaymentService {
 	service := &PaymentService{
 		config:  cfg,
 		storage: storage,
+		profiler: profiler,
 		client: &http.Client{
 			Timeout:   cfg.RequestTimeout,
 			Transport: otelhttp.NewTransport(&http.Transport{

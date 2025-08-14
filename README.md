@@ -52,6 +52,7 @@ sleep 30
 - **Grafana Dashboards**: http://localhost:3000 (admin/admin123)
 - **Prometheus Metrics**: http://localhost:9090
 - **Tempo Tracing**: http://localhost:3200
+- **Pyroscope Profiling**: http://localhost:4040
 
 ## ✨ Key Features
 
@@ -71,6 +72,7 @@ sleep 30
 - **Distributed Tracing**: OpenTelemetry + Tempo integration
 - **Structured Logging**: JSON logs with correlation IDs via Loki
 - **Metrics & Monitoring**: Prometheus + Grafana dashboards
+- **Continuous Profiling**: Pyroscope for CPU and memory profiling
 - **Log Correlation**: Trace IDs automatically linked to logs
 - **Cross-Service Tracing**: Full request flow visibility
 
@@ -106,10 +108,10 @@ sleep 30
      └─────────────────────────────────────────────────────────┘
 
                         Observability Stack
-     ┌─────────────────────────────────────────────────────────┐
-     │  Grafana  │  Loki   │  Tempo   │ Prometheus │ Promtail │
-     │(Dashboards)│ (Logs)  │(Traces)  │ (Metrics)  │(Shipping)│
-     └─────────────────────────────────────────────────────────┘
+     ┌─────────────────────────────────────────────────────────────────────┐
+     │  Grafana  │  Loki   │  Tempo   │ Prometheus │ Promtail │ Pyroscope │
+     │(Dashboards)│ (Logs)  │(Traces)  │ (Metrics)  │(Shipping)│(Profiling)│
+     └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 📈 Observability Platform
@@ -136,6 +138,13 @@ Our comprehensive observability platform provides complete visibility into syste
 - **Performance Analysis**: Detailed latency breakdown
 - **Error Root Cause**: Trace-level error investigation
 - **Span Correlation**: Link traces to logs and metrics
+
+### **🔥 Continuous Profiling (Pyroscope)**
+- **CPU Profiling**: Identify performance bottlenecks and hot functions
+- **Memory Profiling**: Track allocations, detect memory leaks
+- **Goroutine Profiling**: Monitor concurrency patterns and deadlocks
+- **Real-time Analysis**: Live flame graphs and performance insights
+- **Historical Data**: Compare profiles over time for optimization
 
 ### **Key Observability Features:**
 ```json

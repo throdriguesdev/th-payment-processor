@@ -10,6 +10,7 @@ import (
 	"th_payment_processor/internal/handlers"
 	"th_payment_processor/internal/logging"
 	"th_payment_processor/internal/middleware"
+	"th_payment_processor/internal/profiling"
 	"th_payment_processor/internal/services"
 	"th_payment_processor/internal/storage"
 	"th_payment_processor/internal/tracing"
@@ -46,6 +47,18 @@ func main() {
 		"log_level":  logConfig.Level,
 		"log_format": logConfig.Format,
 	}).Info("Application starting with structured logging enabled")
+
+	// Initialize profiling
+	profiler := profiling.NewProfiler(logrus.StandardLogger())
+	if err := profiler.Start(); err != nil {
+		logrus.Warnf("Failed to start profiler: %v", err)
+	} else {
+		defer func() {
+			if err := profiler.Stop(); err != nil {
+				logrus.Errorf("Failed to stop profiler: %v", err)
+			}
+		}()
+	}
 
 	// tracing
 	shutdown, err := tracing.InitTracer()
@@ -87,7 +100,7 @@ func main() {
 	}
 
 	// init services
-	paymentService := services.NewPaymentService(cfg, storageImpl)
+	paymentService := services.NewPaymentService(cfg, storageImpl, profiler)
 
 	//  health monitoring in background
 	ctx := context.Background()
@@ -105,6 +118,7 @@ func main() {
 	router.Use(gin.Recovery())
 	// Skip gin.Logger() for performance - we have structured logging
 	router.Use(middleware.CorrelationIDMiddleware())
+	router.Use(middleware.ProfilingMiddleware(profiler))
 	router.Use(otelgin.Middleware("th-payment-processor"))
 	router.Use(middleware.SimpleMetricsMiddleware())
 
